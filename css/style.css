@@ -20,21 +20,22 @@ html, body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background: radial-gradient(ellipse at center, #0a0a2a 0%, #000000 100%);
+    background: #000000;
+    overflow: hidden;
 }
 
 #gameCanvas {
     display: block;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
+    vertical-align: middle;
     background: #000000;
-    border: 1px solid rgba(68, 136, 255, 0.3);
-    box-shadow: 0 0 20px rgba(68, 136, 255, 0.2),
-                inset 0 0 20px rgba(0, 0, 0, 0.5);
+    border: none;
     outline: none;
-    /* Prevent any external content from bleeding into the canvas viewport */
-    max-width: 100%;
-    max-height: 100%;
+    /* Hard size cap so the canvas never overflows the viewport.
+       Overflowing would let game content visually appear above/below the
+       intended viewport area. */
+    max-width: 100vw;
+    max-height: 100vh;
+    image-rendering: auto;
 }
 
 /* Prevent text selection and context menu on mobile */

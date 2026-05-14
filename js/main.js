@@ -143,17 +143,17 @@ class Game {
     }
 
     _resizeCanvas() {
-        const container = document.getElementById('gameContainer');
         const windowW = window.innerWidth;
         const windowH = window.innerHeight;
         const gameRatio = GAME_WIDTH / GAME_HEIGHT;
-        const windowRatio = windowW / windowH;
 
-        let displayW, displayH;
-        if (windowRatio > gameRatio) {
-            displayH = windowH;
-            displayW = displayH * gameRatio;
-        } else {
+        // Fit the canvas entirely inside the viewport while preserving aspect ratio.
+        // Both width and height must be <= viewport, otherwise the canvas overflows
+        // and the off-screen portion can visually "wrap" to the top, producing the
+        // colored band of game content (score popups, enemy bullets, etc).
+        let displayH = windowH;
+        let displayW = displayH * gameRatio;
+        if (displayW > windowW) {
             displayW = windowW;
             displayH = displayW / gameRatio;
         }
@@ -350,6 +350,16 @@ class Game {
         ctx.textAlign = 'left';
 
         ctx.restore();
+
+        // Edge mask: paint solid black 1px borders on the outer edges of the canvas
+        // (drawn AFTER restore so screen-shake never offsets them). This eliminates
+        // any colored fringe that browsers may produce when scaling the canvas DOM
+        // element to fit the viewport.
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, GAME_WIDTH, 1);
+        ctx.fillRect(0, GAME_HEIGHT - 1, GAME_WIDTH, 1);
+        ctx.fillRect(0, 0, 1, GAME_HEIGHT);
+        ctx.fillRect(GAME_WIDTH - 1, 0, 1, GAME_HEIGHT);
     }
 }
 
