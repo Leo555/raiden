@@ -31,10 +31,12 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
-    <!-- Preload critical resources -->
+    <!-- Preload critical resources.
+         data-cfasync="false" tells Cloudflare Rocket Loader to leave these alone;
+         Rocket Loader is incompatible with native ES modules and will break the game. -->
     <link rel="preload" href="/css/style.css" as="style">
-    <link rel="preload" href="/js/main.js" as="script" crossorigin>
-    <link rel="preload" href="/js/utils.js" as="script" crossorigin>
+    <link rel="modulepreload" href="/js/main.js">
+    <link rel="modulepreload" href="/js/utils.js">
 
     <link rel="stylesheet" href="/css/style.css">
 </head>
@@ -42,6 +44,8 @@
     <div id="gameContainer">
         <canvas id="gameCanvas" tabindex="0"></canvas>
     </div>
-    <script type="module" src="/js/main.js"></script>
+    <!-- data-cfasync="false" disables Cloudflare Rocket Loader for this script,
+         which is required because Rocket Loader cannot handle ES modules. -->
+    <script type="module" src="/js/main.js" data-cfasync="false"></script>
 </body>
 </html>
