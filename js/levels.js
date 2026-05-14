@@ -1,6 +1,6 @@
 // levels.js - Level configuration and wave spawning
 
-import { GAME_WIDTH, randRange, randInt } from './utils.js';
+import { GAME_WIDTH, GAME_HEIGHT, randRange, randInt } from './utils.js';
 import { ENEMY_TYPES } from './enemies.js';
 
 const LEVEL_CONFIGS = [
