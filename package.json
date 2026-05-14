@@ -1,0 +1,12 @@
+{
+  "name": "raiden-storm",
+  "version": "1.0.0",
+  "description": "A classic vertical scrolling shooter game built with HTML5 Canvas and vanilla JavaScript",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve . -p 3000",
+    "preview": "npx serve . -p 8080"
+  },
+  "keywords": ["game", "shooter", "html5", "canvas"],
+  "license": "MIT"
+}

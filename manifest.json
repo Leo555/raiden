@@ -1,0 +1,17 @@
+{
+  "name": "Raiden Storm",
+  "short_name": "Raiden",
+  "description": "A classic vertical scrolling shooter game",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#0a0a2a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Raiden Storm - Classic Arcade Shooter</title>
+
+    <!-- SEO -->
+    <meta name="description" content="Raiden Storm - A classic vertical scrolling shooter game with 5 levels, epic boss fights, weapon upgrades, and procedural audio. Play now in your browser!">
+    <meta name="keywords" content="raiden, shooter, arcade, game, HTML5, canvas, browser game">
+    <meta name="author" content="Raiden Storm">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Raiden Storm - Classic Arcade Shooter">
+    <meta property="og:description" content="A classic vertical scrolling shooter with epic boss fights, weapon upgrades, and combo system. Play free in your browser!">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/favicon.svg">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Raiden Storm">
+    <meta name="twitter:description" content="Classic arcade shooter - play free in your browser!">
+
+    <!-- PWA -->
+    <meta name="theme-color" content="#0a0a2a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/css/style.css" as="style">
+    <link rel="preload" href="/js/main.js" as="script" crossorigin>
+    <link rel="preload" href="/js/utils.js" as="script" crossorigin>
+
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" tabindex="0"></canvas>
+    </div>
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>
