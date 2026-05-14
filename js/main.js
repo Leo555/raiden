@@ -327,6 +327,16 @@ class Game {
     _draw() {
         const ctx = this.ctx;
 
+        // CRITICAL: clear the entire canvas every frame BEFORE applying any
+        // transform (screen shake). The background fill is drawn AFTER the
+        // translate(shake.x, shake.y), so without an explicit clear here the
+        // edges of the canvas would never be overwritten when shake != 0,
+        // letting old frames (bullets, explosions, score popups) accumulate
+        // along the left/right/top/bottom strips. This is what caused the
+        // "weird border that gets worse over time".
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
         // Screen shake
         const shake = this.ui.getShakeOffset();
         ctx.save();
