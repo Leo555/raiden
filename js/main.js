@@ -71,21 +71,22 @@ class Game {
     }
 
     _bindUIEvents() {
-        this.canvas.addEventListener('click', (e) => {
+        // Shared handler: convert page coordinates to canvas-space then dispatch
+        // to the right state-specific click target (menu / gameover buttons).
+        const handlePointer = (clientX, clientY) => {
             const rect = this.canvas.getBoundingClientRect();
             const scaleX = this.canvas.width / rect.width;
             const scaleY = this.canvas.height / rect.height;
-            const x = (e.clientX - rect.left) * scaleX;
-            const y = (e.clientY - rect.top) * scaleY;
+            const x = (clientX - rect.left) * scaleX;
+            const y = (clientY - rect.top) * scaleY;
 
-            // Re-focus canvas after click to ensure keyboard works
+            // Re-focus canvas after interaction to keep keyboard input working
             this.canvas.focus();
 
             this.audio.init();
             this.audio.resume();
 
             if (this.state === 'menu') {
-                // Start menu music on first interaction if not playing
                 if (!this.audio.musicPlaying) {
                     this.audio.playMenuMusic();
                 }
@@ -102,6 +103,40 @@ class Game {
                     this.audio.playMenuMusic();
                 }
             }
+        };
+
+        // Desktop: mouse click
+        this.canvas.addEventListener('click', (e) => {
+            handlePointer(e.clientX, e.clientY);
+        });
+
+        // Mobile: touch. We can't rely on the synthetic `click` because input.js
+        // calls preventDefault() on touchstart/touchmove (to suppress scrolling
+        // and zoom), which on iOS/Safari blocks the click from firing on the
+        // canvas. So we handle touchend here using the last touch position.
+        // Only treat it as a tap if the touch didn't move significantly.
+        let touchStartX = 0, touchStartY = 0, touchMoved = false;
+        this.canvas.addEventListener('touchstart', (e) => {
+            const t = e.changedTouches[0];
+            touchStartX = t.clientX;
+            touchStartY = t.clientY;
+            touchMoved = false;
+        }, { passive: true });
+        this.canvas.addEventListener('touchmove', (e) => {
+            const t = e.changedTouches[0];
+            if (Math.abs(t.clientX - touchStartX) > 10 ||
+                Math.abs(t.clientY - touchStartY) > 10) {
+                touchMoved = true;
+            }
+        }, { passive: true });
+        this.canvas.addEventListener('touchend', (e) => {
+            // Only treat short stationary touches as a "tap" (button press).
+            // While the player is actively playing, moving touches drive ship
+            // movement and should NOT trigger button activation.
+            if (touchMoved) return;
+            if (this.state !== 'menu' && this.state !== 'gameover') return;
+            const t = e.changedTouches[0];
+            if (t) handlePointer(t.clientX, t.clientY);
         });
 
         // Handle keyboard start
