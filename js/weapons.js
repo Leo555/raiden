@@ -126,11 +126,41 @@ export class WeaponSystem {
     }
 
     _fireNormal(x, y) {
-        if (this.bullets && this.bullets.firePlayerBullet) {
-            // x is already center of player, y is player's top
-            this.bullets.firePlayerBullet(x, y - 10, 0, -10, 1);
-            this.audio.playShoot();
+        if (!this.bullets || !this.bullets.firePlayerBullet) return;
+        
+        const weapon = this.weapons.get(WEAPON_TYPES.NORMAL);
+        const level = weapon ? weapon.level : 1;
+        
+        // Fire bullets based on weapon level (similar to _defaultShoot)
+        switch (level) {
+            case 1:
+                this.bullets.firePlayerBullet(x, y - 10, 0, -10, 1);
+                break;
+            case 2:
+                this.bullets.firePlayerBullet(x - 5, y - 10, 0, -10, 1);
+                this.bullets.firePlayerBullet(x + 5, y - 10, 0, -10, 1);
+                break;
+            case 3:
+                this.bullets.firePlayerBullet(x, y - 10, 0, -10, 1);
+                this.bullets.firePlayerBullet(x - 5, y - 10, -1.5, -9.5, 1);
+                this.bullets.firePlayerBullet(x + 5, y - 10, 1.5, -9.5, 1);
+                break;
+            case 4:
+                this.bullets.firePlayerBullet(x, y - 10, 0, -10, 1);
+                this.bullets.firePlayerBullet(x - 5, y - 10, -1.2, -9.5, 1);
+                this.bullets.firePlayerBullet(x + 5, y - 10, 1.2, -9.5, 1);
+                this.bullets.firePlayerBullet(x - 10, y - 10, -2.5, -9, 1);
+                this.bullets.firePlayerBullet(x + 10, y - 10, 2.5, -9, 1);
+                break;
+            case 5:
+                for (let i = -3; i <= 3; i++) {
+                    this.bullets.firePlayerBullet(x + i * 6, y - 10, i * 0.8, -10, 1, 'normal', '#88ffcc');
+                }
+                this.bullets.firePlayerBullet(x, y - 20, 0, -14, 2, 'normal', '#ffffff');
+                break;
         }
+        
+        this.audio.playShoot();
     }
 
     _fireLaser(x, y) {
@@ -236,6 +266,28 @@ export class WeaponSystem {
 
     getWeaponInfo() {
         return this.weapons.get(this.currentWeapon);
+    }
+
+    /**
+     * Upgrade current weapon level (called when collecting P powerup)
+     */
+    upgradeCurrentWeapon() {
+        const weapon = this.weapons.get(this.currentWeapon);
+        if (weapon && weapon.level < weapon.maxLevel) {
+            weapon.level++;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Switch to next weapon in cycle (called when collecting W powerup)
+     */
+    switchToNextWeapon() {
+        const currentIndex = WEAPON_CYCLE.indexOf(this.currentWeapon);
+        const nextIndex = (currentIndex + 1) % WEAPON_CYCLE.length;
+        this.switchWeapon(WEAPON_CYCLE[nextIndex]);
+        return WEAPON_CYCLE[nextIndex];
     }
 
     getEnergy() {

@@ -192,9 +192,6 @@ export class Player {
         if (this.weaponSystem) {
             this.weaponSystem.update(dt, this.x, this.y, enemies);
         }
-
-        // Handle weapon switch
-        this._handleWeaponSwitch();
     }
 
     _handleWeaponSwitch() {
@@ -352,11 +349,23 @@ export class Player {
     }
 
     powerUp() {
-        if (this.weaponLevel < this.maxWeaponLevel) {
-            this.weaponLevel++;
-            this.audio.playLevelUp();
+        // Upgrade current weapon via weapon system (powerup-driven)
+        if (this.weaponSystem) {
+            const upgraded = this.weaponSystem.upgradeCurrentWeapon();
+            if (upgraded) {
+                this.weaponLevel = this.weaponSystem.weapons.get(this.weaponSystem.currentWeapon).level;
+                this.audio.playLevelUp();
+            } else {
+                this.audio.playPowerup();
+            }
         } else {
-            this.audio.playPowerup();
+            // Fallback: upgrade weaponLevel directly
+            if (this.weaponLevel < this.maxWeaponLevel) {
+                this.weaponLevel++;
+                this.audio.playLevelUp();
+            } else {
+                this.audio.playPowerup();
+            }
         }
     }
 

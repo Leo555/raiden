@@ -10,7 +10,8 @@ export const POWERUP_TYPES = {
     COIN: '$',        // Coin (instant score)
     LIFE: '1UP',     // Extra life (instant)
     RAPID_FIRE: 'F',  // Rapid fire (duration-based, fire rate x2)
-    HEALTH: 'H'       // Health restore (instant, 30% HP)
+    HEALTH: 'H',      // Health restore (instant, 30% HP)
+    WEAPON: 'W'       // Switch to next weapon type (instant)
 };
 
 class PowerUp {
@@ -66,7 +67,9 @@ export class PowerUpSystem {
         if (rand < 0.80) return POWERUP_TYPES.COIN;
         if (rand < 0.90) return POWERUP_TYPES.RAPID_FIRE;
         if (rand < 0.95) return POWERUP_TYPES.HEALTH;
-        return POWERUP_TYPES.LIFE;
+        // 5% chance for weapon switch (W)
+        if (rand < 0.98) return POWERUP_TYPES.LIFE;
+        return POWERUP_TYPES.WEAPON;
     }
 
     update(dt) {
@@ -139,6 +142,12 @@ export class PowerUpSystem {
                 // Restore 30% HP
                 player.restoreHealth(0.3);
                 break;
+            case POWERUP_TYPES.WEAPON:
+                // Switch to next weapon type
+                if (player.weaponSystem) {
+                    player.weaponSystem.switchToNextWeapon();
+                }
+                break;
         }
 
         // Remove from array
@@ -173,6 +182,7 @@ export class PowerUpSystem {
             case POWERUP_TYPES.LIFE: return '#44ff44';
             case POWERUP_TYPES.RAPID_FIRE: return '#ffff00';
             case POWERUP_TYPES.HEALTH: return '#00ff88';
+            case POWERUP_TYPES.WEAPON: return '#ff00ff';  // Purple for weapon switch
             default: return '#ffffff';
         }
     }
