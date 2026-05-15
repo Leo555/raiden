@@ -127,8 +127,8 @@ export class WeaponSystem {
 
     _fireNormal(x, y) {
         if (this.bullets && this.bullets.firePlayerBullet) {
-            const cx = x + this.player.width / 2;
-            this.bullets.firePlayerBullet(cx, y - 10, 0, -10, 1);
+            // x is already center of player, y is player's top
+            this.bullets.firePlayerBullet(x, y - 10, 0, -10, 1);
             this.audio.playShoot();
         }
     }
@@ -186,7 +186,6 @@ export class WeaponSystem {
         if (!enemies || enemies.length === 0) return;
 
         const weapon = this.weapons.get(WEAPON_TYPES.HOMING);
-        const cx = x + this.player.width / 2;
 
         // Find nearest enemy
         let nearest = null;
@@ -194,7 +193,7 @@ export class WeaponSystem {
 
         for (const enemy of enemies) {
             if (!enemy.active) continue;
-            const dx = enemy.x + enemy.width / 2 - cx;
+            const dx = enemy.x + enemy.width / 2 - x;
             const dy = enemy.y + enemy.height / 2 - y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < nearestDist) {
@@ -205,16 +204,17 @@ export class WeaponSystem {
 
         if (nearest && this.bullets.fireHomingBullet) {
             // fireHomingBullet(x, y, speed, color, homingStrength)
-            this.bullets.fireHomingBullet(cx, y, 5, '#00ff00', 0.05);
+            // x is already center of player
+            this.bullets.fireHomingBullet(x, y - 10, 5, '#00ff00', 0.05);
             this.audio.playShoot();
         }
     }
 
     _fireExplosive(x, y) {
-        const cx = x + this.player.width / 2;
+        // x is already center of player
         if (this.bullets && this.bullets.firePlayerBullet) {
             // Fire an explosive bullet (type='explosive')
-            this.bullets.firePlayerBullet(cx, y - 10, 0, -10, 3, 'explosive', '#ff8800');
+            this.bullets.firePlayerBullet(x, y - 10, 0, -10, 3, 'explosive', '#ff8800');
             this.audio.playShoot();
         }
     }
@@ -255,7 +255,8 @@ export class WeaponSystem {
         const weapon = this.weapons.get(WEAPON_TYPES.LASER);
         if (!weapon.isFiring) return;
 
-        const cx = playerX + this.player.width / 2;
+        // playerX is already center of player
+        const cx = playerX;
 
         ctx.save();
         ctx.strokeStyle = '#00ffff';

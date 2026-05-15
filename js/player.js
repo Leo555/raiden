@@ -102,21 +102,36 @@ export class Player {
             return;
         }
 
-        // Movement
+        // Movement - Keyboard or Mouse
         let dx = 0, dy = 0;
-        if (this.input.isLeft()) dx -= 1;
-        if (this.input.isRight()) dx += 1;
-        if (this.input.isUp()) dy -= 1;
-        if (this.input.isDown()) dy += 1;
+        
+        // Mouse control: only when mouse button is pressed
+        if (this.input.mouse.down) {
+            // Smoothly move towards mouse position
+            const targetX = this.input.mouse.x - this.width / 2;
+            const targetY = this.input.mouse.y - this.height / 2;
+            const diffX = targetX - this.x;
+            const diffY = targetY - this.y;
+            
+            // Move towards target with smoothing
+            this.x += diffX * 0.15;
+            this.y += diffY * 0.15;
+        } else {
+            // Keyboard control
+            if (this.input.isLeft()) dx -= 1;
+            if (this.input.isRight()) dx += 1;
+            if (this.input.isUp()) dy -= 1;
+            if (this.input.isDown()) dy += 1;
 
-        // Normalize diagonal movement
-        if (dx !== 0 && dy !== 0) {
-            dx *= 0.707; // 1/Math.sqrt(2)
-            dy *= 0.707;
+            // Normalize diagonal movement
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.707; // 1/Math.sqrt(2)
+                dy *= 0.707;
+            }
+
+            this.x += dx * this.speed * dt * 60;
+            this.y += dy * this.speed * dt * 60;
         }
-
-        this.x += dx * this.speed * dt * 60;
-        this.y += dy * this.speed * dt * 60;
 
         // Clamp position
         this.x = clamp(this.x, 0, GAME_WIDTH - this.width);
@@ -475,7 +490,8 @@ export class Player {
         if (this.weaponSystem && this.currentWeaponType === WEAPON_TYPES.LASER) {
             const weapon = this.weaponSystem.weapons.get(WEAPON_TYPES.LASER);
             if (weapon && weapon.isFiring) {
-                this._drawLaserBeam(ctx, cx, cy);
+                // Pass player top position (nose of ship) for laser start
+                this._drawLaserBeam(ctx, cx, this.y);
             }
         }
 
