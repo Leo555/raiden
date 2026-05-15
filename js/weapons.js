@@ -1,4 +1,4 @@
-// js/weapons.js - Weapon System Implementation
+// js/weapons.js - Weapon System (purely powerup-driven)
 
 /**
  * Weapon type enum
@@ -9,6 +9,18 @@ export const WEAPON_TYPES = {
     HOMING: 'homing',
     EXPLOSIVE: 'explosive'
 };
+
+/**
+ * Weapon display info for HUD
+ */
+export const WEAPON_INFO = {
+    [WEAPON_TYPES.NORMAL]:   { name: 'VULCAN',  color: '#88ccff' },
+    [WEAPON_TYPES.LASER]:   { name: 'LASER',   color: '#ff4488' },
+    [WEAPON_TYPES.HOMING]:  { name: 'HOMING',  color: '#00ff88' },
+    [WEAPON_TYPES.EXPLOSIVE]: { name: 'BLAST',   color: '#ff8800' },
+};
+
+const WEAPON_CYCLE = [WEAPON_TYPES.NORMAL, WEAPON_TYPES.LASER, WEAPON_TYPES.HOMING, WEAPON_TYPES.EXPLOSIVE];
 
 /**
  * Weapon system class

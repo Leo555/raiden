@@ -1,7 +1,8 @@
-// player.js - Player ship system with Weapon Integration
+// js/player.js - Player ship system with Weapon + Skin Integration
 
 import { GAME_WIDTH, GAME_HEIGHT, clamp } from './utils.js';
 import { WeaponSystem, WEAPON_TYPES } from './weapons.js';
+import { SkinSystem } from './skins.js';
 
 export class Player {
     constructor(bullets, particles, audio, input) {
@@ -53,10 +54,18 @@ export class Player {
         // Weapon system
         this.weaponSystem = null;
         this.currentWeaponType = WEAPON_TYPES.NORMAL;
+        
+        // Skin system (NEW)
+        this.skinSystem = null;
     }
 
     initWeaponSystem() {
         this.weaponSystem = new WeaponSystem(this, this.bullets, this.particles, this.audio);
+    }
+
+    // NEW: Initialize skin system
+    initSkinSystem() {
+        this.skinSystem = new SkinSystem();
     }
 
     reset() {
@@ -79,23 +88,19 @@ export class Player {
     }
 
     update(dt, enemies) {
-        if (!this.active) {
-            if (this.respawning) {
-                this.respawnTimer -= dt * 60;
-                if (this.respawnTimer <= 0) {
-                    this.active = true;
-                    this.respawning = false;
-                    this.invincible = true;
-                    this.invincibleTimer = this.invincibleDuration;
-                    this.x = GAME_WIDTH / 2 - this.width / 2;
-                    this.y = GAME_HEIGHT - 80;
-                }
+        if (!this.active && !this.respawning) return;
+
+        // Respawn timer
+        if (this.respawning) {
+            this.respawnTimer -= dt * 60;
+            if (this.respawnTimer <= 0) {
+                this.respawning = false;
+                this.active = true;
+                this.invincible = true;
+                this.invincibleTimer = this.invincibleDuration;
             }
             return;
         }
-
-        // Weapon switching (keys 1-4)
-        this._handleWeaponSwitch();
 
         // Movement
         let dx = 0, dy = 0;
@@ -104,30 +109,14 @@ export class Player {
         if (this.input.isUp()) dy -= 1;
         if (this.input.isDown()) dy += 1;
 
-        // Mouse/touch control
-        if (this.input.touch.active) {
-            const tx = this.input.touch.x - this.width / 2;
-            const ty = this.input.touch.y - this.height / 2;
-            dx = (tx - this.x) * 0.15;
-            dy = (ty - this.y) * 0.15;
-            this.x += dx;
-            this.y += dy;
-        } else if (this.input.mouse.down && this.input.usingMouse) {
-            const tx = this.input.mouse.x - this.width / 2;
-            const ty = this.input.mouse.y - this.height / 2;
-            dx = (tx - this.x) * 0.12;
-            dy = (ty - this.y) * 0.12;
-            this.x += dx;
-            this.y += dy;
-        } else {
-            // Normalize diagonal
-            if (dx !== 0 && dy !== 0) {
-                dx *= 0.707;
-                dy *= 0.707;
-            }
-            this.x += dx * this.speed * dt * 60;
-            this.y += dy * this.speed * dt * 60;
+        // Normalize diagonal movement
+        if (dx !== 0 && dy !== 0) {
+            dx *= 0.707; // 1/Math.sqrt(2)
+            dy *= 0.707;
         }
+
+        this.x += dx * this.speed * dt * 60;
+        this.y += dy * this.speed * dt * 60;
 
         // Clamp position
         this.x = clamp(this.x, 0, GAME_WIDTH - this.width);
@@ -188,6 +177,9 @@ export class Player {
         if (this.weaponSystem) {
             this.weaponSystem.update(dt, this.x, this.y, enemies);
         }
+
+        // Handle weapon switch
+        this._handleWeaponSwitch();
     }
 
     _handleWeaponSwitch() {
@@ -223,7 +215,6 @@ export class Player {
 
     _shoot(enemies) {
         if (!this.weaponSystem) {
-            // Fallback to default shooting
             this._defaultShoot();
             return;
         }
@@ -232,13 +223,13 @@ export class Player {
         const cy = this.y;
 
         // Use weapon system to fire
-        this.weaponSystem.fire(this.x, cy, enemies);
+        this.weaponSystem.fire(cx, cy, enemies);
 
         // Draw laser if firing
         if (this.currentWeaponType === WEAPON_TYPES.LASER) {
             const weapon = this.weaponSystem.weapons.get(WEAPON_TYPES.LASER);
             if (weapon && weapon.isFiring) {
-                this.weaponSystem.drawLaser ? this.weaponSystem.drawLaser : null;
+                // Laser is drawn in weapon system
             }
         }
     }
@@ -396,6 +387,16 @@ export class Player {
         this.audio.playPowerup();
     }
 
+    getWeaponInfo() {
+        if (!this.weaponSystem) return null;
+        const weapon = this.weaponSystem.getCurrentWeapon();
+        return {
+            type: this.currentWeaponType,
+            energy: this.weaponSystem.energy,
+            maxEnergy: this.weaponSystem.maxEnergy
+        };
+    }
+
     draw(ctx) {
         if (!this.active) return;
 
@@ -425,19 +426,21 @@ export class Player {
         ctx.lineTo(cx + 3, engineY);
         ctx.fill();
 
-        // Ship body
-        ctx.fillStyle = '#2266cc';
+        // Ship body (use skin color)
+        const skinColor = this.skinSystem ? this.skinSystem.getCurrentSkin().color : '#2266cc';
+        ctx.fillStyle = skinColor;
         ctx.beginPath();
         ctx.moveTo(cx, this.y);
         ctx.lineTo(this.x + this.width, this.y + this.height * 0.7);
         ctx.lineTo(this.x + this.width - 4, this.y + this.height);
         ctx.lineTo(this.x + 4, this.y + this.height);
-        ctx.lineTo(this.x, this.y + this.height * 0.7);
+        ctx.lineTo(cx, this.y + this.height * 0.7);
         ctx.closePath();
         ctx.fill();
 
-        // Wings
-        ctx.fillStyle = '#3388ee';
+        // Wings (use secondary skin color)
+        const secondaryColor = this.skinSystem ? this.skinSystem.getCurrentSkin().secondaryColor : '#3388ee';
+        ctx.fillStyle = secondaryColor;
         ctx.beginPath();
         ctx.moveTo(cx - 4, this.y + 10);
         ctx.lineTo(this.x - 2, this.y + this.height - 5);
@@ -451,11 +454,13 @@ export class Player {
         ctx.closePath();
         ctx.fill();
 
-        // Cockpit
-        ctx.fillStyle = '#66ccff';
+        // Cockpit (use skin color with transparency)
+        ctx.fillStyle = skinColor;
+        ctx.globalAlpha *= 0.7;
         ctx.beginPath();
         ctx.ellipse(cx, this.y + 14, 4, 7, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha /= 0.7;
 
         // Shield indicator
         if (this.shield > 0) {
@@ -494,23 +499,13 @@ export class Player {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx, 0);
+        ctx.moveTo(cx - 1, cy);
+        ctx.lineTo(cx - 1, 0);
+        ctx.moveTo(cx + 1, cy);
+        ctx.lineTo(cx + 1, 0);
         ctx.stroke();
 
         ctx.shadowBlur = 0;
         ctx.globalAlpha = 1;
-    }
-
-    getWeaponInfo() {
-        if (this.weaponSystem) {
-            return {
-                type: this.currentWeaponType,
-                info: this.weaponSystem.getWeaponInfo(),
-                energy: this.weaponSystem.getEnergy(),
-                maxEnergy: this.weaponSystem.getMaxEnergy()
-            };
-        }
-        return null;
     }
 }

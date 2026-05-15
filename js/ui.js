@@ -439,6 +439,222 @@ export class UISystem {
         ctx.textAlign = 'left';
     }
 
+    // ==================
+    // NEW: Achievement Progress UI (PM Review Requirement)
+    // ==================
+    drawAchievementProgress(ctx, achievementSystem) {
+        if (!achievementSystem) return;
+
+        ctx.save();
+
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+        // Title
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 24px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('ACHIEVEMENTS', GAME_WIDTH / 2, 60);
+
+        // Achievement list
+        const achievements = achievementSystem.getAllAchievements();
+        const startY = 100;
+        const lineHeight = 45;
+
+        achievements.forEach((ach, index) => {
+            const y = startY + index * lineHeight;
+
+            // Background for each achievement
+            ctx.fillStyle = ach.unlocked ? 'rgba(255, 215, 0, 0.1)' : 'rgba(255, 255, 255, 0.05)';
+            this._roundedRect(ctx, 50, y - 15, GAME_WIDTH - 100, 35, 5);
+            ctx.fill();
+
+            // Icon
+            ctx.font = '20px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(ach.icon || '?', 60, y + 5);
+
+            // Name
+            ctx.fillStyle = ach.unlocked ? '#ffd700' : '#888888';
+            ctx.font = 'bold 14px monospace';
+            ctx.fillText(ach.title, 90, y - 2);
+
+            // Description
+            ctx.fillStyle = ach.unlocked ? '#aaaaaa' : '#555555';
+            ctx.font = '10px monospace';
+            ctx.fillText(ach.description, 90, y + 12);
+
+            // Progress bar (if not unlocked)
+            if (!ach.unlocked && ach.progressMax > 0) {
+                const barWidth = 100;
+                const barHeight = 4;
+                const barX = GAME_WIDTH - 160;
+                const barY = y - 2;
+
+                // Background
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+
+                // Progress
+                const progressWidth = barWidth * ach.progressRatio;
+                ctx.fillStyle = '#44ff44';
+                ctx.fillRect(barX, barY, progressWidth, barHeight);
+
+                // Progress text
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(`${Math.floor(ach.progress)}/${ach.progressMax}`, GAME_WIDTH - 50, y + 10);
+            }
+
+            // Unlocked indicator
+            if (ach.unlocked) {
+                ctx.fillStyle = '#44ff44';
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('UNLOCKED', GAME_WIDTH - 60, y + 5);
+            }
+        });
+
+        // Instruction
+        ctx.fillStyle = '#666666';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Press ESC to return', GAME_WIDTH / 2, GAME_HEIGHT - 40);
+
+        ctx.restore();
+    }
+
+    // NEW: Skin Selection UI (PM Review Requirement)
+    drawSkinSelection(ctx, skinSystem, currentSkinId) {
+        if (!skinSystem) return;
+
+        ctx.save();
+
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+        // Title
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 24px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SELECT SKIN', GAME_WIDTH / 2, 60);
+
+        // Skin list
+        const skins = skinSystem.getAllSkins();
+        const startY = 120;
+        const skinHeight = 60;
+
+        skins.forEach((skin, index) => {
+            const y = startY + index * skinHeight;
+            const isSelected = skin.id === currentSkinId;
+            const isUnlocked = skin.unlocked;
+
+            // Background
+            ctx.fillStyle = isSelected ? 'rgba(255, 170, 0, 0.3)' : 'rgba(255, 255, 255, 0.05)';
+            this._roundedRect(ctx, 50, y, GAME_WIDTH - 100, skinHeight - 10, 8);
+            ctx.fill();
+
+            // Border
+            if (isSelected) {
+                ctx.strokeStyle = '#ffaa00';
+                ctx.lineWidth = 2;
+                this._roundedRect(ctx, 50, y, GAME_WIDTH - 100, skinHeight - 10, 8);
+                ctx.stroke();
+            }
+
+            // Skin preview (draw a small ship with skin color)
+            const previewX = 80;
+            const previewY = y + (skinHeight - 10) / 2;
+            this._drawSkinPreview(ctx, previewX, previewY, skin);
+
+            // Name
+            ctx.fillStyle = isUnlocked ? (isSelected ? '#ffaa00' : '#ffffff') : '#666666';
+            ctx.font = isSelected ? 'bold 16px monospace' : '14px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(skin.name, 120, y + 20);
+
+            // Status
+            if (isUnlocked) {
+                ctx.fillStyle = '#44ff44';
+                ctx.font = '12px monospace';
+                ctx.fillText('UNLOCKED', 120, y + 40);
+            } else if (skin.hidden) {
+                ctx.fillStyle = '#666666';
+                ctx.font = '12px monospace';
+                ctx.fillText('???', 120, y + 40);
+            } else {
+                ctx.fillStyle = '#ff4444';
+                ctx.font = '12px monospace';
+                ctx.fillText(`PRICE: ${skin.price}`, 120, y + 40);
+            }
+
+            // Current indicator
+            if (isSelected) {
+                ctx.fillStyle = '#ffaa00';
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('CURRENT', GAME_WIDTH - 70, y + 30);
+            }
+        });
+
+        // Instruction
+        ctx.fillStyle = '#666666';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Use ↑↓ to select, ENTER to confirm, ESC to return', GAME_WIDTH / 2, GAME_HEIGHT - 40);
+
+        ctx.restore();
+    }
+
+    _drawSkinPreview(ctx, x, y, skin) {
+        ctx.save();
+        ctx.translate(x, y);
+
+        // Ship body
+        ctx.fillStyle = skin.color;
+        ctx.beginPath();
+        ctx.moveTo(0, -15);
+        ctx.lineTo(-10, 15);
+        ctx.lineTo(0, 5);
+        ctx.lineTo(10, 15);
+        ctx.closePath();
+        ctx.fill();
+
+        // Wings
+        ctx.fillStyle = skin.secondaryColor || skin.color;
+        ctx.beginPath();
+        ctx.moveTo(-2, -5);
+        ctx.lineTo(-15, 10);
+        ctx.lineTo(-5, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(2, -5);
+        ctx.lineTo(15, 10);
+        ctx.lineTo(5, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    // NEW: Button click detection for Achievement and Skin UI
+    isAchievementButtonClicked(x, y) {
+        // Pause menu "Achievements" button
+        const btnY = GAME_HEIGHT / 2 + 60;
+        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 35;
+    }
+
+    isSkinButtonClicked(x, y) {
+        // Pause menu "Skins" button
+        const btnY = GAME_HEIGHT / 2 + 105;
+        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 35;
+    }
+
     _roundedRect(ctx, x, y, w, h, r) {
         ctx.beginPath();
         ctx.moveTo(x + r, y);

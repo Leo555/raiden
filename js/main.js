@@ -41,6 +41,7 @@ class Game {
         this.bullets = new BulletSystem(this.particles);
         this.player = new Player(this.bullets, this.particles, this.audio, this.input);
         this.player.initWeaponSystem();
+        this.player.initSkinSystem(); // NEW: Initialize skin system
         this.powerups = new PowerUpSystem(this.particles);
         this.enemySystem = new EnemySystem(this.bullets, this.particles, this.audio, this.powerups);
         this.boss = new Boss(this.bullets, this.particles, this.audio, this.powerups);
@@ -173,6 +174,25 @@ class Game {
                     this.audio.init();
                     this.audio.resume();
                     this._startGame(false);
+                }
+            }
+
+            // NEW: Keyboard shortcuts for Achievement & Skin UI
+            if (e.code === 'KeyA' && this.state === 'paused') {
+                // A key: Open achievement progress (in pause menu)
+                this.state = 'achievement_view';
+                e.preventDefault();
+            }
+            if (e.code === 'KeyS' && this.state === 'paused') {
+                // S key: Open skin selection (in pause menu)
+                this.state = 'skin_select';
+                e.preventDefault();
+            }
+            // ESC: Close Achievement or Skin UI
+            if (e.code === 'Escape') {
+                if (this.state === 'achievement_view' || this.state === 'skin_select') {
+                    this.state = 'paused';
+                    e.preventDefault();
                 }
             }
         });
@@ -565,6 +585,18 @@ class Game {
 
         if (this.state === 'challenge_select') {
             this.ui.drawChallengeSelect(ctx);
+            ctx.restore();
+            return;
+        }
+
+        if (this.state === 'achievement_view') {
+            this.ui.drawAchievementProgress(ctx, this.achievements);
+            ctx.restore();
+            return;
+        }
+
+        if (this.state === 'skin_select') {
+            this.ui.drawSkinSelection(ctx, this.player.skinSystem, this.player.skinSystem.currentSkin);
             ctx.restore();
             return;
         }

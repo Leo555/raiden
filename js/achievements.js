@@ -1,9 +1,10 @@
-// js/achievements.js - Achievement System (T05 Complete)
+// js/achievements.js - Achievement System (Complete - 13 achievements)
 
 import { GAME_WIDTH, GAME_HEIGHT } from './utils.js';
 
 /**
- * Achievement definitions (T05: 8 achievements)
+ * Achievement definitions (13 achievements total)
+ * Aligned with PRD (docs/system_design.md)
  */
 const ACHIEVEMENT_DEFS = {
     FIRST_BLOOD: {
@@ -16,24 +17,44 @@ const ACHIEVEMENT_DEFS = {
         reward: { type: 'score', value: 100 },
         hidden: false
     },
+    MASSACRE: {
+        id: 'MASSACRE',
+        title: '大屠杀',
+        description: '单局击破 100 架敌机',
+        icon: '🔥',
+        category: 'kill',
+        condition: { type: 'single_game_kills', value: 100 },
+        reward: { type: 'bomb', value: 1 },
+        hidden: false
+    },
     BOSS_HUNTER: {
         id: 'BOSS_HUNTER',
         title: 'Boss 猎人',
-        description: '击破 3 个 Boss',
+        description: '击破 5 个 Boss',
         icon: '👹',
         category: 'kill',
-        condition: { type: 'total_boss_kills', value: 3 },
+        condition: { type: 'total_boss_kills', value: 5 },
         reward: { type: 'life', value: 1 },
         hidden: false
     },
-    COMBO_20: {
-        id: 'COMBO_20',
-        title: '连击大师',
-        description: '达成 20 连击',
+    COMBO_10: {
+        id: 'COMBO_10',
+        title: '连击新手',
+        description: '达成 10 连击',
         icon: '⚡',
         category: 'combo',
-        condition: { type: 'max_combo', value: 20 },
+        condition: { type: 'max_combo', value: 10 },
         reward: { type: 'score', value: 500 },
+        hidden: false
+    },
+    COMBO_50: {
+        id: 'COMBO_50',
+        title: '连击大师',
+        description: '达成 50 连击',
+        icon: '🌟',
+        category: 'combo',
+        condition: { type: 'max_combo', value: 50 },
+        reward: { type: 'weapon_upgrade', value: 1 },
         hidden: false
     },
     SURVIVOR: {
@@ -44,6 +65,16 @@ const ACHIEVEMENT_DEFS = {
         category: 'survival',
         condition: { type: 'survival_time', value: 300 },
         reward: { type: 'shield', value: 1 },
+        hidden: false
+    },
+    NO_HIT_1MIN: {
+        id: 'NO_HIT_1MIN',
+        title: '无伤达人',
+        description: '1 分钟内不受伤害',
+        icon: '🛡️',
+        category: 'perfection',
+        condition: { type: 'no_damage_time', value: 60 },
+        reward: { type: 'score', value: 2000 },
         hidden: false
     },
     SHARPSHOOTER: {
@@ -84,6 +115,16 @@ const ACHIEVEMENT_DEFS = {
         category: 'score',
         condition: { type: 'single_game_score', value: 50000 },
         reward: { type: 'life', value: 1 },
+        hidden: false
+    },
+    SCORE_10K: {
+        id: 'SCORE_10K',
+        title: '万元户',
+        description: '单局得分达到 10,000',
+        icon: '💰',
+        category: 'score',
+        condition: { type: 'single_game_score', value: 10000 },
+        reward: { type: 'score', value: 1000 },
         hidden: false
     }
 };
