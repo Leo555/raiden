@@ -1,6 +1,7 @@
-// player.js - Player ship system
+// player.js - Player ship system with Weapon Integration
 
 import { GAME_WIDTH, GAME_HEIGHT, clamp } from './utils.js';
+import { WeaponSystem, WEAPON_TYPES } from './weapons.js';
 
 export class Player {
     constructor(bullets, particles, audio, input) {
@@ -42,7 +43,20 @@ export class Player {
         this.bombTimer = 0;
         this.bombCooldown = 0;
 
+        // Shield duration
+        this.shieldDuration = 0;
+        this.shieldHitsLeft = 0;
+        this.rapidFireDuration = 0;
+
         this.engineFlicker = 0;
+
+        // Weapon system
+        this.weaponSystem = null;
+        this.currentWeaponType = WEAPON_TYPES.NORMAL;
+    }
+
+    initWeaponSystem() {
+        this.weaponSystem = new WeaponSystem(this, this.bullets, this.particles, this.audio);
     }
 
     reset() {
@@ -58,6 +72,10 @@ export class Player {
         this.active = true;
         this.respawning = false;
         this.hasTempMissile = false;
+        this.currentWeaponType = WEAPON_TYPES.NORMAL;
+        if (this.weaponSystem) {
+            this.weaponSystem.switchWeapon(WEAPON_TYPES.NORMAL);
+        }
     }
 
     update(dt, enemies) {
@@ -75,6 +93,9 @@ export class Player {
             }
             return;
         }
+
+        // Weapon switching (keys 1-4)
+        this._handleWeaponSwitch();
 
         // Movement
         let dx = 0, dy = 0;
@@ -120,7 +141,7 @@ export class Player {
             }
         }
 
-        // Auto shoot
+        // Auto shoot with weapon system
         this.shootTimer -= dt * 60;
         if (this.shootTimer <= 0) {
             this._shoot(enemies);
@@ -162,9 +183,67 @@ export class Player {
         }
 
         this.engineFlicker += dt * 60;
+
+        // Update weapon system
+        if (this.weaponSystem) {
+            this.weaponSystem.update(dt, this.x, this.y, enemies);
+        }
+    }
+
+    _handleWeaponSwitch() {
+        if (this.input.isKeyDown('Digit1') || this.input.isKeyDown('Numpad1')) {
+            this._switchWeapon(WEAPON_TYPES.NORMAL);
+            this.input.clearKey('Digit1');
+            this.input.clearKey('Numpad1');
+        }
+        if (this.input.isKeyDown('Digit2') || this.input.isKeyDown('Numpad2')) {
+            this._switchWeapon(WEAPON_TYPES.LASER);
+            this.input.clearKey('Digit2');
+            this.input.clearKey('Numpad2');
+        }
+        if (this.input.isKeyDown('Digit3') || this.input.isKeyDown('Numpad3')) {
+            this._switchWeapon(WEAPON_TYPES.HOMING);
+            this.input.clearKey('Digit3');
+            this.input.clearKey('Numpad3');
+        }
+        if (this.input.isKeyDown('Digit4') || this.input.isKeyDown('Numpad4')) {
+            this._switchWeapon(WEAPON_TYPES.EXPLOSIVE);
+            this.input.clearKey('Digit4');
+            this.input.clearKey('Numpad4');
+        }
+    }
+
+    _switchWeapon(type) {
+        this.currentWeaponType = type;
+        if (this.weaponSystem) {
+            this.weaponSystem.switchWeapon(type);
+        }
+        this.audio.playPowerup();
     }
 
     _shoot(enemies) {
+        if (!this.weaponSystem) {
+            // Fallback to default shooting
+            this._defaultShoot();
+            return;
+        }
+
+        const cx = this.x + this.width / 2;
+        const cy = this.y;
+
+        // Use weapon system to fire
+        this.weaponSystem.fire(this.x, cy, enemies);
+
+        // Draw laser if firing
+        if (this.currentWeaponType === WEAPON_TYPES.LASER) {
+            const weapon = this.weaponSystem.weapons.get(WEAPON_TYPES.LASER);
+            if (weapon && weapon.isFiring) {
+                this.weaponSystem.drawLaser ? this.weaponSystem.drawLaser : null;
+            }
+        }
+    }
+
+    _defaultShoot() {
         const cx = this.x + this.width / 2;
         const cy = this.y;
 
@@ -191,11 +270,9 @@ export class Player {
                 this.bullets.firePlayerBullet(cx + 10, cy, 2.5, -9, 1);
                 break;
             case 5:
-                // Wide spread + faster fire
                 for (let i = -3; i <= 3; i++) {
                     this.bullets.firePlayerBullet(cx + i * 6, cy, i * 0.8, -10, 1, 'normal', '#88ffcc');
                 }
-                // Laser effect (rapid thin bullets)
                 this.bullets.firePlayerBullet(cx, cy - 10, 0, -14, 2, 'normal', '#ffffff');
                 break;
         }
@@ -298,6 +375,27 @@ export class Player {
         this.audio.playPowerup();
     }
 
+    // Activate duration-based shield (absorbs 3 hits over 10 seconds)
+    activateShield(duration, hits) {
+        this.shieldDuration = duration;
+        this.shieldHitsLeft = hits;
+        this.audio.playPowerup();
+    }
+
+    // Activate rapid fire (fire rate x2 for 8 seconds)
+    activateRapidFire(duration) {
+        this.rapidFireDuration = duration;
+        this.shootCooldown = Math.max(3, this.shootCooldown / 2);
+        this.audio.playPowerup();
+    }
+
+    // Restore health (30% of max shield/life)
+    restoreHealth(percentage) {
+        const restoreAmount = Math.ceil(this.maxShield * percentage);
+        this.shield = Math.min(this.maxShield, this.shield + restoreAmount);
+        this.audio.playPowerup();
+    }
+
     draw(ctx) {
         if (!this.active) return;
 
@@ -368,7 +466,51 @@ export class Player {
             ctx.stroke();
         }
 
+        // Draw laser if active
+        if (this.weaponSystem && this.currentWeaponType === WEAPON_TYPES.LASER) {
+            const weapon = this.weaponSystem.weapons.get(WEAPON_TYPES.LASER);
+            if (weapon && weapon.isFiring) {
+                this._drawLaserBeam(ctx, cx, cy);
+            }
+        }
+
         ctx.restore();
         ctx.globalAlpha = 1;
+    }
+
+    _drawLaserBeam(ctx, cx, cy) {
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00ffff';
+        ctx.globalAlpha = 0.8;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, 0);
+        ctx.stroke();
+
+        // Laser glow
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, 0);
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+    }
+
+    getWeaponInfo() {
+        if (this.weaponSystem) {
+            return {
+                type: this.currentWeaponType,
+                info: this.weaponSystem.getWeaponInfo(),
+                energy: this.weaponSystem.getEnergy(),
+                maxEnergy: this.weaponSystem.getMaxEnergy()
+            };
+        }
+        return null;
     }
 }

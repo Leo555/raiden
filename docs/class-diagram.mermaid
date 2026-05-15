@@ -1,0 +1,202 @@
+classDiagram
+    class Enemy {
+        +x: number
+        +y: number
+        +width: number
+        +height: number
+        +hp: number
+        +speed: number
+        +type: ENEMY_TYPES
+        +active: boolean
+        +movePattern: string
+        +flashTimer: number
+        +reset(): void
+    }
+    
+    class SpeedyEnemy {
+        +dashSpeed: number
+        +dashCooldown: number
+        +isDashing: boolean
+        +dashTimer: number
+        +update(dt, playerX, playerY): void
+        +dash(): void
+    }
+    
+    class RotatingEnemy {
+        +rotationAngle: number
+        +rotationSpeed: number
+        +fireCooldown: number
+        +update(dt, playerX, playerY): void
+        +fireRotatingBullets(): void
+    }
+    
+    class SuicideEnemy {
+        +explosionRadius: number
+        +armingDistance: number
+        +isArmed: boolean
+        +update(dt, playerX, playerY): void
+        +explode(): void
+        +checkDetonation(playerX, playerY): boolean
+    }
+    
+    Enemy <|-- SpeedyEnemy
+    Enemy <|-- RotatingEnemy
+    Enemy <|-- SuicideEnemy
+
+---
+
+classDiagram
+    class WeaponSystem {
+        +owner: Player
+        +bullets: BulletSystem
+        +particles: ParticleSystem
+        +currentWeapon: WEAPON_TYPES
+        +weapons: Map
+        +update(dt): void
+        +fire(weaponType, x, y, target?): void
+        +switchWeapon(type): void
+        +upgradeWeapon(type): void
+    }
+    
+    class Weapon {
+        <<abstract>>
+        +type: WEAPON_TYPES
+        +damage: number
+        +fireRate: number
+        +fireCooldown: number
+        +level: number
+        +maxLevel: number
+        +fire(x, y, target?): void
+        +upgrade(): boolean
+        +getDescription(): string
+    }
+    
+    class LaserWeapon {
+        +laserLength: number
+        +laserWidth: number
+        +damagePerSecond: number
+        +isFiring: boolean
+        +laserHitList: Set
+        +fire(x, y): void
+        +updateLaser(dt): void
+        +drawLaser(ctx): void
+    }
+    
+    class HomingWeapon {
+        +maxHomingBullets: number
+        +turnSpeed: number
+        +bulletSpeed: number
+        +fire(x, y, target): void
+    }
+    
+    class ExplosiveWeapon {
+        +explosionRadius: number
+        +explosionDamage: number
+        +blastForce: number
+        +fire(x, y): void
+        +createExplosion(x, y): void
+    }
+    
+    WeaponSystem --> Weapon
+    Weapon <|-- LaserWeapon
+    Weapon <|-- HomingWeapon
+    Weapon <|-- ExplosiveWeapon
+
+---
+
+classDiagram
+    class AchievementSystem {
+        +achievements: Map~string, AchievementStatus~
+        +definitions: Object
+        +stats: PlayerStats
+        +notificationQueue: Array
+        +isPaused: boolean
+        +init(): void
+        +unlock(id): void
+        +updateProgress(id, value): void
+        +checkCondition(achievement, gameState): boolean
+        +showNotification(id): void
+        +save(): void
+        +load(): void
+        +getProgress(id): ProgressInfo
+        +getAllAchievements(): Array
+        +getUnlockedCount(): number
+        +resetAll(): void
+    }
+    
+    class AchievementStatus {
+        +id: string
+        +unlocked: boolean
+        +unlockTime: number
+        +progress: number
+        +progressMax: number
+        +notified: boolean
+    }
+    
+    class PlayerStats {
+        +totalKills: number
+        +totalBossKills: number
+        +maxCombo: number
+        +maxScore: number
+        +totalPlayTime: number
+        +currentGameKills: number
+        +currentGameScore: number
+        +currentGameStartTime: number
+        +noDamageTimer: number
+        +resetCurrentGame(): void
+        +toJSON(): Object
+        +fromJSON(data): void
+    }
+    
+    class AchievementNotification {
+        +id: string
+        +title: string
+        +icon: string
+        +timer: number
+        +maxTimer: number
+        +y: number
+        +targetY: number
+        +active: boolean
+        +update(dt): void
+        +draw(ctx): void
+    }
+    
+    AchievementSystem --> AchievementStatus
+    AchievementSystem --> PlayerStats
+    AchievementSystem --> AchievementNotification
+
+---
+
+classDiagram
+    class ChallengeMode {
+        +mode: string
+        +timeLimit: number
+        +timer: number
+        +score: number
+        +isActive: boolean
+        +leaderboard: Array
+        +start(mode): void
+        +update(dt): void
+        +getTimeRemaining(): number
+        +getScore(): number
+        +isTimeUp(): boolean
+        +saveScore(): void
+        +loadLeaderboard(): Array
+    }
+    
+    class TimeAttackMode {
+        +targetScore: number
+        +enemiesKilled: number
+        +update(dt): void
+        +checkWinCondition(): boolean
+    }
+    
+    class SurvivalMode {
+        +wavesSurvived: number
+        +nextWaveTimer: number
+        +update(dt): void
+        +spawnWave(): void
+    }
+    
+    ChallengeMode <|-- TimeAttackMode
+    ChallengeMode <|-- SurvivalMode

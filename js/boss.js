@@ -3,10 +3,11 @@
 import { GAME_WIDTH, GAME_HEIGHT, randRange, angleBetween } from './utils.js';
 
 export class Boss {
-    constructor(bullets, particles, audio) {
+    constructor(bullets, particles, audio, powerups) {
         this.bullets = bullets;
         this.particles = particles;
         this.audio = audio;
+        this.powerups = powerups || null;
 
         this.x = 0;
         this.y = -100;
@@ -70,10 +71,10 @@ export class Boss {
         else if (level <= 5) this.difficultyTier = 2;
         else this.difficultyTier = 3;
 
-        // Restrict attack patterns for early bosses (each boss has 6 patterns: 0~5)
-        // tier 0: only patterns 0,1,2 (basic) | tier 1: 0~4 | tier 2+: all 0~5
-        this.maxPattern = this.difficultyTier === 0 ? 3
-                        : this.difficultyTier === 1 ? 5 : 6;
+        // Restrict attack patterns for early bosses (each boss has 7 patterns: 0~6)
+        // tier 0: only patterns 0,1,2,3 (basic) | tier 1: 0~5 | tier 2+: all 0~6
+        this.maxPattern = this.difficultyTier === 0 ? 4
+                        : this.difficultyTier === 1 ? 6 : 7;
 
         switch (type) {
             case 1: // INFERNO GUARDIAN - fire themed
@@ -140,6 +141,15 @@ export class Boss {
                     this.particles.explode(ex, ey, 1.5);
                 }
                 this.audio.playExplosion(3);
+
+                // 100% power-up drop on boss defeat
+                if (this.powerups) {
+                    this.powerups.spawnRandom(
+                        this.x + this.width / 2,
+                        this.y + this.height / 2
+                    );
+                }
+
                 this.active = false;
             }
             return;
@@ -161,15 +171,18 @@ export class Boss {
         // Phase change based on HP
         // tier 0 (Lv.1): no Phase 2 rage, gentler Phase 1 trigger
         const hpRatio = this.hp / this.maxHp;
-        if (this.difficultyTier > 0 && hpRatio < 0.3 && this.phase < 2) {
+        // Updated: Phase 1 at 70% HP (speed +20%), Phase 2 at 40% HP (attack +50%)
+        if (this.difficultyTier > 0 && hpRatio < 0.4 && this.phase < 2) {
             this.phase = 2;
             this.shakeAmount = 8;
+            this.speed *= 1.2; // Speed +20% in phase 2
             this.particles.explode(this.x + this.width / 2, this.y + this.height / 2, 2);
             // Phase change bullet clear and rage burst
             this._rageBurst();
-        } else if (hpRatio < 0.6 && this.phase < 1) {
+        } else if (hpRatio < 0.7 && this.phase < 1) {
             this.phase = 1;
             this.shakeAmount = 5;
+            this.speed *= 1.2; // Speed +20% in phase 1
             this.particles.explode(this.x + this.width / 2, this.y + this.height / 2, 1.5);
         }
 
@@ -259,6 +272,22 @@ export class Boss {
             this.bullets.fireAccelBullet(cx, cy,
                 Math.cos(a) * 1.5, Math.sin(a) * 1.5, '#ff0000', 0.04);
         }
+    }
+
+    _laserAimAttack(cx, cy, px, py) {
+        // Laser aim attack - fires a powerful beam towards player position
+        const angle = Math.atan2(py - cy, px - cx);
+
+        // Fire multiple beam bullets to create a laser effect
+        for (let i = 0; i < 3; i++) {
+            const offset = (i - 1) * 0.02;
+            this.bullets.fireBeamBullet(cx, cy,
+                Math.cos(angle + offset) * 5, Math.sin(angle + offset) * 5,
+                '#ff00ff', 35);
+        }
+
+        // Screen shake for laser firing
+        this.shakeAmount = Math.max(this.shakeAmount, 4);
     }
 
     _attack(playerX, playerY, enemySystem) {
@@ -433,7 +462,11 @@ export class Boss {
                 }
                 break;
 
-            case 5: // Ring explosion
+            case 5: // Laser aim attack
+                this._laserAimAttack(cx, cy, px, py);
+                break;
+
+            case 6: // Ring explosion
                 if (this.phase >= 1) {
                     for (let i = 0; i < 16; i++) {
                         const a = (i / 16) * Math.PI * 2;

@@ -38,6 +38,8 @@ const LEVEL_CONFIGS = [
                 { type: ENEMY_TYPES.SMALL, count: 5, pattern: 'dive', spacing: 15, startX: 350 }
             ]},
             { time: 460, enemies: [{ type: ENEMY_TYPES.LARGE, count: 1, pattern: 'hover', spacing: 0, startX: 200 }] },
+            // Add SpeedyEnemy in Level 2
+            { time: 520, enemies: [{ type: ENEMY_TYPES.SPEEDY, count: 3, pattern: 'straight', spacing: 60, startX: 100 }] },
             { time: 580, enemies: [
                 { type: ENEMY_TYPES.MEDIUM, count: 4, pattern: 'sine', spacing: 40, startX: 120 },
                 { type: ENEMY_TYPES.SMALL, count: 6, pattern: 'straight', spacing: 25, startX: 200 }
@@ -65,6 +67,8 @@ const LEVEL_CONFIGS = [
                 { type: ENEMY_TYPES.SMALL, count: 10, pattern: 'dive', spacing: 12, startX: 100 },
                 { type: ENEMY_TYPES.ELITE, count: 1, pattern: 'sine', spacing: 0, startX: 240 }
             ]},
+            // Add RotatingEnemy in Level 3
+            { time: 420, enemies: [{ type: ENEMY_TYPES.ROTATING, count: 2, pattern: 'hover', spacing: 80, startX: 150 }] },
             { time: 500, enemies: [{ type: ENEMY_TYPES.MEDIUM, count: 5, pattern: 'swoop', spacing: 40, startX: 80 }] },
             { time: 650, enemies: [
                 { type: ENEMY_TYPES.LARGE, count: 1, pattern: 'hover', spacing: 0, startX: 120 },
@@ -92,6 +96,8 @@ const LEVEL_CONFIGS = [
                 { type: ENEMY_TYPES.ELITE, count: 3, pattern: 'swoop', spacing: 50, startX: 120 },
                 { type: ENEMY_TYPES.SMALL, count: 12, pattern: 'dive', spacing: 10, startX: 60 }
             ]},
+            // Add SuicideEnemy in Level 4
+            { time: 320, enemies: [{ type: ENEMY_TYPES.SUICIDE, count: 2, pattern: 'straight', spacing: 80, startX: 100 }] },
             { time: 400, enemies: [{ type: ENEMY_TYPES.LARGE, count: 3, pattern: 'hover', spacing: 80, startX: 80 }] },
             { time: 560, enemies: [
                 { type: ENEMY_TYPES.MEDIUM, count: 8, pattern: 'sine', spacing: 20, startX: 60 },
@@ -120,6 +126,8 @@ const LEVEL_CONFIGS = [
                 { type: ENEMY_TYPES.ELITE, count: 3, pattern: 'swoop', spacing: 40, startX: 100 },
                 { type: ENEMY_TYPES.LARGE, count: 2, pattern: 'sine', spacing: 80, startX: 150 }
             ]},
+            // Add SUICIDE enemy type in Level 5
+            { time: 350, enemies: [{ type: ENEMY_TYPES.SUICIDE, count: 3, pattern: 'straight', spacing: 60, startX: 100 }] },
             { time: 450, enemies: [
                 { type: ENEMY_TYPES.MEDIUM, count: 10, pattern: 'straight', spacing: 15, startX: 50 },
                 { type: ENEMY_TYPES.MEDIUM, count: 10, pattern: 'straight', spacing: 15, startX: 300 }
@@ -228,7 +236,17 @@ export class LevelManager {
                 const delay = i * 10;
                 setTimeout(() => {
                     if (this.state !== 'complete') {
-                        this.enemySystem.spawnEnemy(group.type, x, -30 - i * 20, group.pattern);
+                        // Handle new enemy types
+                        if (group.type === ENEMY_TYPES.SPEEDY) {
+                            this.enemySystem.spawnSpeedyEnemy(x, -30 - i * 20);
+                        } else if (group.type === ENEMY_TYPES.ROTATING) {
+                            this.enemySystem.spawnRotatingEnemy(x, -30 - i * 20);
+                        } else if (group.type === ENEMY_TYPES.SUICIDE) {
+                            this.enemySystem.spawnSuicideEnemy(x, -30 - i * 20);
+                        } else {
+                            // Original enemy types
+                            this.enemySystem.spawnEnemy(group.type, x, -30 - i * 20, group.pattern);
+                        }
                     }
                 }, delay * 16);
             }

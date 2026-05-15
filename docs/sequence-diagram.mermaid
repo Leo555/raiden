@@ -1,0 +1,116 @@
+sequenceDiagram
+    participant Level as LevelManager
+    participant EnemySys as EnemySystem
+    participant Speedy as SpeedyEnemy
+    participant Rotating as RotatingEnemy
+    participant Suicide as SuicideEnemy
+    participant Player as Player
+    participant Collision as CollisionSystem
+
+    Level->>EnemySys: spawnEnemy('speedy', x, y)
+    EnemySys->>Speedy: new SpeedyEnemy()
+    Speedy-->>EnemySys: enemy instance
+    
+    loop Every Frame Update
+        EnemySys->>Speedy: update(dt, playerX, playerY)
+        Speedy->>Speedy: check if should dash
+        alt Should Dash
+            Speedy->>Speedy: dash()
+            Speedy->>Speedy: move at dashSpeed
+        else Normal Move
+            Speedy->>Speedy: move at normal speed
+        end
+        
+        EnemySys->>Rotating: update(dt, playerX, playerY)
+        Rotating->>Rotating: rotate angle
+        alt Fire Cooldown Ready
+            Rotating->>BulletSys: fireRotatingBullets()
+        end
+        
+        EnemySys->>Suicide: update(dt, playerX, playerY)
+        Suicide->>Suicide: checkDetonation()
+        alt Within Detonation Distance
+            Suicide->>Suicide: explode()
+            Suicide->>Collision: checkAoeDamage()
+            alt Player in Blast Radius
+                Collision->>Player: hit()
+            end
+        end
+    end
+
+---
+
+sequenceDiagram
+    participant Player
+    participant WeaponSys as WeaponSystem
+    participant Laser as LaserWeapon
+    participant Homing as HomingWeapon
+    participant Explosive as ExplosiveWeapon
+    participant BulletSys as BulletSystem
+    participant Enemy as EnemySystem
+    participant Collision as CollisionSystem
+
+    Player->>WeaponSys: fire(currentWeapon, x, y)
+    
+    alt Laser Weapon
+        WeaponSys->>Laser: fire(x, y)
+        Laser->>Laser: isFiring = true
+        loop Every Frame
+            Laser->>Laser: updateLaser(dt)
+            Laser->>Collision: checkLaserHit()
+            Collision->>Enemy: damage(hp - dps*dt)
+        end
+    else Homing Weapon
+        WeaponSys->>Homing: fire(x, y, target)
+        Homing->>BulletSys: fireHomingBullet()
+        loop Every Frame
+            BulletSys->>Homing: update bullet
+            Homing->>Homing: calculate tracking angle
+            Homing->>BulletSys: update bullet velocity
+        end
+    else Explosive Weapon
+        WeaponSys->>Explosive: fire(x, y)
+        Explosive->>BulletSys: firePlayerBullet()
+        loop Bullet Hit or Timeout
+            Explosive->>Explosive: createExplosion(x, y)
+            Explosive->>ParticleSys: explode()
+            Explosive->>Collision: checkAoeDamage(radius)
+            Collision->>Enemy: damage(explosionDamage)
+        end
+    end
+
+---
+
+sequenceDiagram
+    participant Game
+    participant Collision as CollisionSystem
+    participant Combo as ComboSystem
+    participant Achievement as AchievementSystem
+    participant Notification as AchievementNotification
+    participant Audio as AudioManager
+    participant UI as UISystem
+
+    Note over Game: Enemy Destroyed
+    Collision->>Achievement: onEnemyKill(score, type)
+    Achievement->>Achievement: _checkKillAchievements()
+    
+    alt Condition Met
+        Achievement->>Achievement: _tryUnlock(id)
+        Achievement->>Notification: new Notification(def)
+        Achievement->>Audio: playAchievement()
+        Achievement->>Achievement: save()
+        
+        loop Every Frame
+            Notification->>Notification: update(dt)
+            Notification->>UI: draw(ctx)
+        end
+        
+        alt Has Reward
+            Achievement->>Game: dispatchEvent('achievement-reward')
+            Game->>Player: apply reward
+        end
+    end
+    
+    Note over Game: Combo Changed
+    Combo->>Achievement: onComboChange(combo)
+    Achievement->>Achievement: _checkComboAchievements()

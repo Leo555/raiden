@@ -1,9 +1,10 @@
 // collision.js - Collision detection system (Enhanced with Combo & Graze)
 
 import { circleCollision, rectCollision, distance } from './utils.js';
+import { SuicideEnemy } from './enemies.js';
 
 export class CollisionSystem {
-    constructor(player, bullets, enemySystem, boss, powerups, particles, combo, floatingText, audio) {
+    constructor(player, bullets, enemySystem, boss, powerups, particles, combo, floatingText, audio, challenge = null) {
         this.player = player;
         this.bullets = bullets;
         this.enemySystem = enemySystem;
@@ -13,6 +14,7 @@ export class CollisionSystem {
         this.combo = combo;
         this.floatingText = floatingText;
         this.audio = audio;
+        this.challenge = challenge;
 
         // Graze settings
         this.grazeDistance = 20; // Outer graze radius
@@ -31,6 +33,7 @@ export class CollisionSystem {
         this._enemyBulletsVsPlayer();
         this._grazeDetection();
         this._enemiesVsPlayer();
+        this._checkSuicideExplosions();
         this._playerVsPowerups();
         this._playerVsBomb();
 
@@ -74,6 +77,11 @@ export class CollisionSystem {
                         }
                         this.player.score += finalScore;
 
+                        // Notify challenge mode
+                        if (this.challenge && this.challenge.isActive) {
+                            this.challenge.onEnemyKill(finalScore);
+                        }
+
                         // Show score floating text
                         if (this.floatingText) {
                             const ex = e.x + e.width / 2;
@@ -93,6 +101,11 @@ export class CollisionSystem {
                                 e.y + e.height / 2
                             );
                         }
+
+                        // Handle explosive bullet AOE
+                        if (b.type === 'explosive') {
+                            this._handleExplosiveAOE(b, e);
+                        }
                     }
 
                     // Remove bullet (unless it's a piercing laser at level 5)
@@ -102,6 +115,35 @@ export class CollisionSystem {
                     }
                     break;
                 }
+            }
+        }
+    }
+
+    _handleExplosiveAOE(bullet, hitEnemy) {
+        // Apply AOE damage to nearby enemies
+        const aoERadius = 60;
+        const aoEDamage = 2;
+        const bx = bullet.x;
+        const by = bullet.y;
+
+        // Create explosion effect
+        if (this.particles) {
+            this.particles.explode(bx, by, '#ff8800', 15);
+            this.particles.explode(bx, by, '#ff4400', 10);
+        }
+
+        // Damage nearby enemies
+        for (const enemy of this.enemySystem.enemies) {
+            if (!enemy.active || enemy === hitEnemy) continue;
+
+            const enemyCX = enemy.x + enemy.width / 2;
+            const enemyCY = enemy.y + enemy.height / 2;
+            const dx = enemyCX - bx;
+            const dy = enemyCY - by;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist <= aoERadius) {
+                this.enemySystem.damageEnemy(enemy, aoEDamage);
             }
         }
     }
@@ -144,6 +186,12 @@ export class CollisionSystem {
                         bossScore = this.combo.addKill(5000);
                     }
                     this.player.score += bossScore;
+
+                    // Notify challenge mode
+                    if (this.challenge && this.challenge.isActive) {
+                        this.challenge.onEnemyKill(bossScore);
+                    }
+
                     if (this.floatingText) {
                         this.floatingText.spawnScore(
                             this.boss.x + this.boss.width / 2,
@@ -276,6 +324,49 @@ export class CollisionSystem {
         // Play graze sound
         if (this.audio) {
             this.audio.playGraze();
+        }
+    }
+
+    /**
+     * Check suicide enemy explosions (AOE damage).
+     */
+    _checkSuicideExplosions() {
+        if (!this.player.active || this.player.invincible) return;
+
+        const enemies = this.enemySystem.enemies;
+        const playerCX = this.player.x + this.player.width / 2;
+        const playerCY = this.player.y + this.player.height / 2;
+
+        for (const enemy of enemies) {
+            if (!enemy.active || !(enemy instanceof SuicideEnemy)) continue;
+            if (!enemy.isArmed) continue;
+
+            // Check distance to player
+            const enemyCX = enemy.x + enemy.width / 2;
+            const enemyCY = enemy.y + enemy.height / 2;
+            const dx = playerCX - enemyCX;
+            const dy = playerCY - enemyCY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist <= enemy.explosionRadius) {
+                // Player takes damage
+                this.player.hit();
+
+                // Create explosion effect
+                this.particles.explode(enemyCX, enemyCY, '#ff4444', 20);
+                this.particles.explode(enemyCX, enemyCY, '#ffaa00', 15);
+
+                // Deactivate enemy
+                enemy.active = false;
+
+                // Shake screen
+                this.ui.shake(8);
+
+                // Break combo
+                if (this.combo && this.combo.count > 0) {
+                    this.combo._breakCombo();
+                }
+            }
         }
     }
 

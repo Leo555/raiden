@@ -15,6 +15,9 @@ import { LevelManager } from './levels.js';
 import { UISystem } from './ui.js';
 import { ComboSystem } from './combo.js';
 import { FloatingTextSystem } from './floatingText.js';
+import { AchievementSystem } from './achievements.js';
+import { ChallengeMode, TimeAttackMode, SurvivalMode } from './challenge.js';
+import { WeaponSystem, WEAPON_TYPES } from './weapons.js';
 
 class Game {
     constructor() {
@@ -23,7 +26,8 @@ class Game {
         this.canvas.width = GAME_WIDTH;
         this.canvas.height = GAME_HEIGHT;
 
-        this.state = 'menu'; // menu, playing, paused, gameover, levelcomplete
+        this.state = 'menu'; // menu, playing, paused, gameover, levelcomplete, challenge_select, challenge_playing
+        this.challengeMode = null; // 'time_attack' or 'survival'
         this.lastTime = 0;
         this.fps = 0;
         this.frameCount = 0;
@@ -36,9 +40,10 @@ class Game {
         this.particles = new ParticleSystem();
         this.bullets = new BulletSystem(this.particles);
         this.player = new Player(this.bullets, this.particles, this.audio, this.input);
-        this.enemySystem = new EnemySystem(this.bullets, this.particles, this.audio);
-        this.boss = new Boss(this.bullets, this.particles, this.audio);
+        this.player.initWeaponSystem();
         this.powerups = new PowerUpSystem(this.particles);
+        this.enemySystem = new EnemySystem(this.bullets, this.particles, this.audio, this.powerups);
+        this.boss = new Boss(this.bullets, this.particles, this.audio, this.powerups);
         this.levelManager = new LevelManager(this.enemySystem, this.boss, this.audio);
         this.ui = new UISystem();
 
@@ -46,11 +51,23 @@ class Game {
         this.combo = new ComboSystem(this.audio);
         this.floatingText = new FloatingTextSystem();
 
+        // Achievement system
+        this.achievements = new AchievementSystem(this.audio);
+
+        // Challenge mode (initially null, activated when mode selected)
+        this.challenge = null;
+
+        // Listen for achievement reward events
+        window.addEventListener('achievement-reward', (e) => {
+            this._handleAchievementReward(e.detail);
+        });
+
         // Pass combo and floatingText to collision
         this.collision = new CollisionSystem(
             this.player, this.bullets, this.enemySystem,
             this.boss, this.powerups, this.particles,
-            this.combo, this.floatingText, this.audio
+            this.combo, this.floatingText, this.audio,
+            this.challenge
         );
 
         this.levelCompleteTimer = 0;
@@ -92,8 +109,18 @@ class Game {
                 }
                 if (this.ui.isStartButtonClicked(x, y)) {
                     this._startGame(false);
+                } else if (this.ui.isChallengeButtonClicked(x, y)) {
+                    this.state = 'challenge_select';
                 } else if (this.ui.isEndlessButtonClicked(x, y)) {
                     this._startGame(true);
+                }
+            } else if (this.state === 'challenge_select') {
+                if (this.ui.isTimeAttackButtonClicked(x, y)) {
+                    this._startChallenge('time_attack');
+                } else if (this.ui.isSurvivalButtonClicked(x, y)) {
+                    this._startChallenge('survival');
+                } else if (this.ui.isBackButtonClicked(x, y)) {
+                    this.state = 'menu';
                 }
             } else if (this.state === 'gameover') {
                 if (this.ui.isRestartButtonClicked(x, y)) {
@@ -164,6 +191,10 @@ class Game {
         this.floatingText.clear();
         this._wasBossActive = false;
 
+        // Reset achievement stats for new game
+        this.achievements.stats.reset();
+        this.achievements.stats.totalGames++;
+
         if (endless) {
             this.levelManager.endlessMode = true;
             this.levelManager.state = 'playing';
@@ -172,6 +203,65 @@ class Game {
             this.enemySystem.difficulty = 1;
         } else {
             this.levelManager.startLevel(0);
+        }
+
+        this.audio.startMusic();
+    }
+
+    _handleAchievementReward(reward) {
+        if (!reward) return;
+
+        switch (reward.type) {
+            case 'score':
+                this.player.score += reward.value;
+                break;
+            case 'bomb':
+                this.player.bombs += reward.value;
+                break;
+            case 'life':
+                this.player.lives += reward.value;
+                break;
+            case 'shield':
+                this.player.shield = Math.min(
+                    this.player.shield + reward.value,
+                    this.player.maxShield || 100
+                );
+                break;
+            case 'weapon_upgrade':
+                if (this.player.weaponLevel < this.player.maxWeaponLevel) {
+                    this.player.weaponLevel++;
+                }
+                break;
+        }
+    }
+
+    _startChallenge(mode) {
+        this.challengeMode = mode;
+        this.state = 'challenge_playing';
+
+        if (mode === 'time_attack') {
+            if (!this.challenge) {
+                this.challenge = new TimeAttackMode();
+            }
+            this.challenge.start();
+        } else if (mode === 'survival') {
+            if (!this.challenge) {
+                this.challenge = new SurvivalMode();
+            }
+            this.challenge.start();
+        }
+
+        this.player.reset();
+        this.enemySystem.clear();
+        this.bullets.clearAll();
+        this.powerups.clear();
+        this.particles.clear();
+        this.combo.reset();
+        this.floatingText.clear();
+
+        // Update collision system with challenge reference
+        if (this.collision) {
+            this.collision.challenge = this.challenge;
         }
 
         this.audio.startMusic();
@@ -231,8 +321,25 @@ class Game {
             }
         }
 
-        if (this.state === 'paused' || this.state === 'menu' || this.state === 'gameover') {
+        if (this.state === 'paused') {
             this.background.update(dt);
+            return;
+        }
+
+        if (this.state === 'menu' || this.state === 'challenge_select') {
+            this.background.update(dt);
+            return;
+        }
+
+        if (this.state === 'challenge_playing') {
+            this._updateChallenge(dt);
+            return;
+        }
+
+        if (this.state === 'gameover') {
+            this.background.update(dt);
+            this.particles.update(dt);
+            this.floatingText.update(dt);
             return;
         }
 
@@ -276,6 +383,15 @@ class Game {
         // Update combo system
         this.combo.update(dt);
         this.floatingText.update(dt);
+
+        // Update achievement system
+        const gameState = {
+            state: this.state,
+            player: this.player,
+            levelManager: this.levelManager,
+            combo: this.combo
+        };
+        this.achievements.update(dt, gameState);
 
         // Background speed based on combo
         this.background.setComboSpeed(this.combo.multiplier);
@@ -324,6 +440,102 @@ class Game {
         }
     }
 
+    _updateChallenge(dt) {
+        if (!this.challenge || !this.challenge.isActive) return;
+
+        // Update challenge timer
+        this.challenge.update(dt);
+
+        // Update game systems
+        this.background.update(dt);
+        this.player.update(dt, this.enemySystem.enemies);
+        this.enemySystem.update(dt, this.player.x + this.player.width / 2, this.player.y + this.player.height / 2);
+        this.bullets.update(dt, this.enemySystem.enemies, this.player.x + this.player.width / 2, this.player.y + this.player.height / 2);
+        this.powerups.update(dt);
+        this.particles.update(dt);
+        this.collision.update(dt);
+
+        // Update combo and floating text
+        this.combo.update(dt);
+        this.floatingText.update(dt);
+
+        // Update achievement system
+        const gameState = {
+            state: this.state,
+            player: this.player,
+            levelManager: this.levelManager,
+            combo: this.combo
+        };
+        this.achievements.update(dt, gameState);
+
+        // Track enemy kills for Time Attack
+        if (this.challengeMode === 'time_attack') {
+            // Enemy system should call challenge.onEnemyKill() when enemies die
+            // This is handled in collision.js
+        }
+
+        // Check challenge completion
+        if (this.challenge.isTimeUp()) {
+            this._endChallenge();
+        }
+
+        // Check game over
+        if (this.player.lives <= 0 && !this.player.active && !this.player.respawning) {
+            this._endChallenge();
+        }
+    }
+
+    _drawChallengeUI(ctx) {
+        if (!this.challenge) return;
+
+        // Draw challenge-specific HUD
+        ctx.save();
+
+        // Challenge mode indicator
+        ctx.fillStyle = this.challengeMode === 'time_attack' ? '#ff8800' : '#4488ff';
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        const modeText = this.challengeMode === 'time_attack' ? 'TIME ATTACK' : 'SURVIVAL MODE';
+        ctx.fillText(modeText, GAME_WIDTH / 2, 25);
+
+        // Timer or waves survived
+        if (this.challengeMode === 'time_attack') {
+            const timeRemaining = this.challenge.getTimeRemaining();
+            const seconds = Math.ceil(timeRemaining / 60);
+            ctx.fillStyle = seconds <= 10 ? '#ff4444' : '#ffffff';
+            ctx.font = 'bold 18px monospace';
+            ctx.fillText(`TIME: ${seconds}s`, GAME_WIDTH / 2, 50);
+
+            // Score in challenge
+            ctx.fillStyle = '#ffcc00';
+            ctx.font = '12px monospace';
+            ctx.fillText(`SCORE: ${this.challenge.score}`, GAME_WIDTH / 2, 70);
+        } else if (this.challengeMode === 'survival') {
+            ctx.fillStyle = '#44bbff';
+            ctx.font = '14px monospace';
+            ctx.fillText(`WAVES: ${this.challenge.wavesSurvived}`, GAME_WIDTH / 2, 50);
+        }
+
+        ctx.restore();
+    }
+
+    _endChallenge() {
+        if (!this.challenge) return;
+
+        // Save score
+        this.challenge.saveScore();
+
+        // Show result
+        const finalScore = this.challenge.score || this.player.score;
+        this.ui.notify(`CHALLENGE COMPLETE! SCORE: ${finalScore}`, 180);
+
+        // Return to challenge select
+        setTimeout(() => {
+            this.state = 'challenge_select';
+            this.challenge.isActive = false;
+        }, 3000);
+    }
+
     _draw() {
         const ctx = this.ctx;
 
@@ -351,6 +563,17 @@ class Game {
             return;
         }
 
+        if (this.state === 'challenge_select') {
+            this.ui.drawChallengeSelect(ctx);
+            ctx.restore();
+            return;
+        }
+
+        if (this.state === 'challenge_playing') {
+            this._drawChallengeUI(ctx);
+            // Continue with normal game drawing
+        }
+
         // Game elements
         this.powerups.draw(ctx);
         this.player.draw(ctx);
@@ -364,6 +587,9 @@ class Game {
 
         // Combo UI
         this.combo.draw(ctx);
+
+        // Achievement notifications
+        this.achievements.draw(ctx);
 
         // Boss HP bar
         if (this.boss.active) {
