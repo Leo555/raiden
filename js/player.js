@@ -102,18 +102,28 @@ export class Player {
             return;
         }
 
-        // Movement - Keyboard or Mouse
+        // Movement - Keyboard, Mouse, or Touch
         let dx = 0, dy = 0;
         
-        // Mouse control: only when mouse button is pressed
-        if (this.input.mouse.down) {
-            // Smoothly move towards mouse position
+        // Touch control (mobile): follow touch position
+        if (this.input.touch && this.input.touch.active) {
+            const targetX = this.input.touch.x - this.width / 2;
+            const targetY = this.input.touch.y - this.height / 2;
+            const diffX = targetX - this.x;
+            const diffY = targetY - this.y;
+            
+            // Move towards touch position with smoothing
+            this.x += diffX * 0.15;
+            this.y += diffY * 0.15;
+        }
+        // Mouse control (desktop): only when mouse button is pressed
+        else if (this.input.mouse.down) {
             const targetX = this.input.mouse.x - this.width / 2;
             const targetY = this.input.mouse.y - this.height / 2;
             const diffX = targetX - this.x;
             const diffY = targetY - this.y;
             
-            // Move towards target with smoothing
+            // Move towards mouse position with smoothing
             this.x += diffX * 0.15;
             this.y += diffY * 0.15;
         } else {
