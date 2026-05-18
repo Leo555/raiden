@@ -138,34 +138,11 @@ class Game {
             handlePointer(e.clientX, e.clientY);
         });
 
-        // Mobile: touch. We can't rely on the synthetic `click` because input.js
-        // calls preventDefault() on touchstart/touchmove (to suppress scrolling
-        // and zoom), which on iOS/Safari blocks the click from firing on the
-        // canvas. So we handle touchend here using the last touch position.
-        // Only treat it as a tap if the touch didn't move significantly.
-        let touchStartX = 0, touchStartY = 0, touchMoved = false;
-        this.canvas.addEventListener('touchstart', (e) => {
-            const t = e.changedTouches[0];
-            touchStartX = t.clientX;
-            touchStartY = t.clientY;
-            touchMoved = false;
-        }, { passive: true });
-        this.canvas.addEventListener('touchmove', (e) => {
-            const t = e.changedTouches[0];
-            if (Math.abs(t.clientX - touchStartX) > 10 ||
-                Math.abs(t.clientY - touchStartY) > 10) {
-                touchMoved = true;
-            }
-        }, { passive: true });
-        this.canvas.addEventListener('touchend', (e) => {
-            // Only treat short stationary touches as a "tap" (button press).
-            // While the player is actively playing, moving touches drive ship
-            // movement and should NOT trigger button activation.
-            if (touchMoved) return;
-            if (this.state !== 'menu' && this.state !== 'gameover') return;
-            const t = e.changedTouches[0];
-            if (t) handlePointer(t.clientX, t.clientY);
-        });
+        // Mobile: use click event for button detection (touch -> click synthesis).
+        // input.js handles touch movement (touchstart/touchmove with preventDefault).
+        // We only need to handle button clicks via the existing 'click' listener above.
+        // The touchstart/touchmove for detecting swipe vs tap is no longer needed
+        // because movement is handled entirely by input.js touch tracking.
 
         // Handle keyboard start
         window.addEventListener('keydown', (e) => {

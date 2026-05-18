@@ -48,9 +48,9 @@ export class InputManager {
             this.mouse.down = false;
         });
 
-        // Touch
+        // Touch - NO preventDefault here, so click event can fire for button taps.
+        // CSS touch-action:none on the canvas handles scroll/zoom prevention.
         this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
             const scaleX = this.canvas.width / rect.width;
             const scaleY = this.canvas.height / rect.height;
@@ -59,19 +59,19 @@ export class InputManager {
             this.touch.y = (t.clientY - rect.top) * scaleY;
             this.touch.active = true;
             this.usingMouse = false;
-        });
+        }, { passive: true });
         this.canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
             const scaleX = this.canvas.width / rect.width;
             const scaleY = this.canvas.height / rect.height;
             const t = e.touches[0];
             this.touch.x = (t.clientX - rect.left) * scaleX;
             this.touch.y = (t.clientY - rect.top) * scaleY;
-        });
+            this.touch.active = true;
+        }, { passive: true });
         this.canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            this.touch.active = false;
+            // Keep active briefly so player finishes moving to last position
+            setTimeout(() => { this.touch.active = false; }, 100);
         });
     }
 
