@@ -300,7 +300,7 @@ class Game {
     }
 
     _loop(timestamp) {
-        const dt = Math.min((timestamp - this.lastTime) / 1000, 0.05);
+        const dt = Math.max(0, Math.min((timestamp - this.lastTime) / 1000, 0.05));
         this.lastTime = timestamp;
 
         // FPS counter

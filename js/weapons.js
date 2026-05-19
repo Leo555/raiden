@@ -87,14 +87,17 @@ export class WeaponSystem {
     update(dt, playerX, playerY, enemies) {
         // Update cooldowns
         for (const [type, weapon] of this.weapons) {
+            if (typeof weapon.fireCooldown !== 'number' || isNaN(weapon.fireCooldown) || weapon.fireCooldown === Infinity) {
+                weapon.fireCooldown = 0;
+            }
             if (weapon.fireCooldown > 0) {
                 weapon.fireCooldown -= dt * 60;
             }
         }
 
-        // Energy regeneration
+        // Energy regeneration (frame-rate independent)
         if (this.energy < this.maxEnergy) {
-            this.energy = Math.min(this.maxEnergy, this.energy + this.energyRegen);
+            this.energy = Math.min(this.maxEnergy, this.energy + this.energyRegen * dt * 60);
         }
 
         // Laser continuous damage
@@ -176,6 +179,13 @@ export class WeaponSystem {
         const weapon = this.weapons.get(WEAPON_TYPES.LASER);
         if (!weapon.isFiring || this.energy < weapon.energyCost) {
             weapon.isFiring = false;
+            // Auto-switch back to NORMAL when out of energy to prevent "no bullets" confusion
+            if (this.energy < weapon.energyCost && this.currentWeapon === WEAPON_TYPES.LASER) {
+                this.switchWeapon(WEAPON_TYPES.NORMAL);
+                if (this.player) {
+                    this.player.currentWeaponType = WEAPON_TYPES.NORMAL;
+                }
+            }
             return;
         }
 
@@ -253,12 +263,21 @@ export class WeaponSystem {
     switchWeapon(type) {
         if (this.weapons.has(type)) {
             this.currentWeapon = type;
+            // Reset fire cooldown on switch so the new weapon can fire immediately
+            const weapon = this.weapons.get(type);
+            if (weapon) weapon.fireCooldown = 0;
             // Stop laser if switching away
             if (type !== WEAPON_TYPES.LASER) {
                 const laser = this.weapons.get(WEAPON_TYPES.LASER);
                 if (laser) laser.isFiring = false;
             }
         }
+    }
+
+    reset() {
+        this.currentWeapon = WEAPON_TYPES.NORMAL;
+        this.energy = this.maxEnergy;
+        this._initWeapons();
     }
 
     getCurrentWeapon() {

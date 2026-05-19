@@ -29,8 +29,6 @@ export class Player {
         this.invincibleTimer = 0;
         this.invincibleDuration = 120; // frames
 
-        this.shootTimer = 0;
-        this.shootCooldown = 8;
         this.missileTimer = 0;
         this.missileCooldown = 40;
         this.hasTempMissile = false;
@@ -48,6 +46,7 @@ export class Player {
         this.shieldDuration = 0;
         this.shieldHitsLeft = 0;
         this.rapidFireDuration = 0;
+        this._originalFireRate = {}; // Store original fireRate for each weapon
 
         this.engineFlicker = 0;
 
@@ -82,8 +81,10 @@ export class Player {
         this.respawning = false;
         this.hasTempMissile = false;
         this.currentWeaponType = WEAPON_TYPES.NORMAL;
+        this._originalFireRate = {};
+        this.rapidFireDuration = 0;
         if (this.weaponSystem) {
-            this.weaponSystem.switchWeapon(WEAPON_TYPES.NORMAL);
+            this.weaponSystem.reset();
         }
     }
 
@@ -157,7 +158,14 @@ export class Player {
             this.rapidFireDuration -= dt * 60;
             if (this.rapidFireDuration <= 0) {
                 this.rapidFireDuration = 0;
-                this.shootCooldown = 8; // restore default
+                // Restore original fireRate for all weapons
+                if (this.weaponSystem && this._originalFireRate) {
+                    for (const [type, rate] of Object.entries(this._originalFireRate)) {
+                        const weapon = this.weaponSystem.weapons.get(type);
+                        if (weapon) weapon.fireRate = rate;
+                    }
+                    this._originalFireRate = {};
+                }
             }
         }
 
@@ -169,20 +177,8 @@ export class Player {
             }
         }
 
-        // Safety check: prevent shootCooldown/shootTimer from becoming NaN
-        if (typeof this.shootCooldown !== 'number' || isNaN(this.shootCooldown) || this.shootCooldown < 0) {
-            this.shootCooldown = 8;
-        }
-        if (typeof this.shootTimer !== 'number' || isNaN(this.shootTimer)) {
-            this.shootTimer = 0;
-        }
-
-        // Auto shoot with weapon system
-        this.shootTimer -= dt * 60;
-        if (this.shootTimer <= 0) {
-            this._shoot(enemies);
-            this.shootTimer = this.shootCooldown;
-        }
+        // Auto shoot with weapon system (let WeaponSystem handle cooldown internally)
+        this._shoot(enemies);
 
         // Missile shooting
         if (this.weaponLevel >= 4 || this.hasTempMissile) {
@@ -432,7 +428,22 @@ export class Player {
     // Activate rapid fire (fire rate x2 for 8 seconds)
     activateRapidFire(duration) {
         this.rapidFireDuration = duration;
-        this.shootCooldown = Math.max(3, this.shootCooldown / 2);
+        // Safety: ensure _originalFireRate is an object
+        if (!this._originalFireRate) {
+            this._originalFireRate = {};
+        }
+        // Halve fireRate for all weapons in WeaponSystem (only store original once)
+        if (this.weaponSystem) {
+            for (const [type, weapon] of this.weaponSystem.weapons) {
+                if (weapon.fireRate) {
+                    // Only store original if not already stored (prevent overwriting on multiple pickups)
+                    if (!this._originalFireRate[type]) {
+                        this._originalFireRate[type] = weapon.fireRate;
+                    }
+                    weapon.fireRate = Math.max(3, weapon.fireRate / 2);
+                }
+            }
+        }
         this.audio.playPowerup();
     }
 

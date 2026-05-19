@@ -145,7 +145,10 @@ export class PowerUpSystem {
             case POWERUP_TYPES.WEAPON:
                 // Switch to next weapon type
                 if (player.weaponSystem) {
-                    player.weaponSystem.switchToNextWeapon();
+                    const nextType = player.weaponSystem.switchToNextWeapon();
+                    if (nextType) {
+                        player.currentWeaponType = nextType;
+                    }
                 }
                 break;
         }
