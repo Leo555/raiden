@@ -60,7 +60,8 @@ export class WeaponSystem {
             isFiring: false,
             laserLength: 800,
             laserWidth: 4,
-            energyCost: 2
+            energyCost: 2,
+            fireCooldown: 0
         });
 
         this.weapons.set(WEAPON_TYPES.HOMING, {

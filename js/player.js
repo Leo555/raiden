@@ -111,10 +111,11 @@ export class Player {
             const targetY = this.input.touch.y - this.height / 2;
             const diffX = targetX - this.x;
             const diffY = targetY - this.y;
-            
-            // Move towards touch position with smoothing
-            this.x += diffX * 0.15;
-            this.y += diffY * 0.15;
+
+            // Move towards touch position with smoothing (frame-rate independent)
+            const smooth = 0.15 * 60 * dt;
+            this.x += diffX * smooth;
+            this.y += diffY * smooth;
         }
         // Mouse control (desktop): only when mouse button is pressed
         else if (this.input.mouse.down) {
@@ -122,10 +123,11 @@ export class Player {
             const targetY = this.input.mouse.y - this.height / 2;
             const diffX = targetX - this.x;
             const diffY = targetY - this.y;
-            
-            // Move towards mouse position with smoothing
-            this.x += diffX * 0.15;
-            this.y += diffY * 0.15;
+
+            // Move towards mouse position with smoothing (frame-rate independent)
+            const smooth = 0.15 * 60 * dt;
+            this.x += diffX * smooth;
+            this.y += diffY * smooth;
         } else {
             // Keyboard control
             if (this.input.isLeft()) dx -= 1;
@@ -147,12 +149,32 @@ export class Player {
         this.x = clamp(this.x, 0, GAME_WIDTH - this.width);
         this.y = clamp(this.y, 0, GAME_HEIGHT - this.height);
 
+        // Weapon switch (keyboard 1-4)
+        this._handleWeaponSwitch();
+
+        // Rapid fire duration countdown
+        if (this.rapidFireDuration > 0) {
+            this.rapidFireDuration -= dt * 60;
+            if (this.rapidFireDuration <= 0) {
+                this.rapidFireDuration = 0;
+                this.shootCooldown = 8; // restore default
+            }
+        }
+
         // Invincibility
         if (this.invincible) {
             this.invincibleTimer -= dt * 60;
             if (this.invincibleTimer <= 0) {
                 this.invincible = false;
             }
+        }
+
+        // Safety check: prevent shootCooldown/shootTimer from becoming NaN
+        if (typeof this.shootCooldown !== 'number' || isNaN(this.shootCooldown) || this.shootCooldown < 0) {
+            this.shootCooldown = 8;
+        }
+        if (typeof this.shootTimer !== 'number' || isNaN(this.shootTimer)) {
+            this.shootTimer = 0;
         }
 
         // Auto shoot with weapon system
@@ -423,7 +445,6 @@ export class Player {
 
     getWeaponInfo() {
         if (!this.weaponSystem) return null;
-        const weapon = this.weaponSystem.getCurrentWeapon();
         return {
             type: this.currentWeaponType,
             energy: this.weaponSystem.energy,
