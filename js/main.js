@@ -262,6 +262,15 @@ class Game {
         this.combo.reset();
         this.floatingText.clear();
 
+        // Start endless enemy spawning for challenge mode
+        this.levelManager.reset();
+        this.levelManager.endlessMode = true;
+        this.levelManager.state = 'playing';
+        this.levelManager.endlessDifficulty = 1;
+        this.levelManager.enemySystem = this.enemySystem;
+        this.enemySystem.difficulty = 1;
+        this.levelManager.startLevel(0);
+
         // Update collision system with challenge reference
         if (this.collision) {
             this.collision.challenge = this.challenge;
@@ -451,8 +460,10 @@ class Game {
 
         // Update game systems
         this.background.update(dt);
+        this.levelManager.update(dt);
         this.player.update(dt, this.enemySystem.enemies);
         this.enemySystem.update(dt, this.player.x + this.player.width / 2, this.player.y + this.player.height / 2);
+        this.boss.update(dt, this.player.x + this.player.width / 2, this.player.y + this.player.height / 2, this.enemySystem);
         this.bullets.update(dt, this.enemySystem.enemies, this.player.x + this.player.width / 2, this.player.y + this.player.height / 2);
         this.powerups.update(dt);
         this.particles.update(dt);
