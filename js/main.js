@@ -91,7 +91,12 @@ class Game {
     _bindUIEvents() {
         // Shared handler: convert page coordinates to canvas-space then dispatch
         // to the right state-specific click target (menu / gameover buttons).
+        let lastTapTime = 0;
         const handlePointer = (clientX, clientY) => {
+            const now = Date.now();
+            if (now - lastTapTime < 200) return; // debounce click/touchend duplication
+            lastTapTime = now;
+
             const rect = this.canvas.getBoundingClientRect();
             const scaleX = this.canvas.width / rect.width;
             const scaleY = this.canvas.height / rect.height;
@@ -138,11 +143,12 @@ class Game {
             handlePointer(e.clientX, e.clientY);
         });
 
-        // Mobile: use click event for button detection (touch -> click synthesis).
-        // input.js handles touch movement (touchstart/touchmove with preventDefault).
-        // We only need to handle button clicks via the existing 'click' listener above.
-        // The touchstart/touchmove for detecting swipe vs tap is no longer needed
-        // because movement is handled entirely by input.js touch tracking.
+        // Mobile fallback: touchend fires even when the browser decides not to synthesise click.
+        // (Browsers skip click synthesis if the finger moves even a few pixels during the touch.)
+        this.canvas.addEventListener('touchend', (e) => {
+            const t = e.changedTouches[0];
+            handlePointer(t.clientX, t.clientY);
+        });
 
         // Handle keyboard start
         window.addEventListener('keydown', (e) => {
