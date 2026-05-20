@@ -196,7 +196,7 @@ export class PlayerStats {
         this.totalShots = 0;
         this.totalHits = 0;
         this.powerupsCollected = 0;
-        this.weaponKills = { normal: 0, laser: 0, homing: 0, explosive: 0 };
+        this.weaponKills = { normal: 0, homing: 0, explosive: 0 };
     }
 
     reset() {
@@ -211,7 +211,7 @@ export class PlayerStats {
         this.currentShots = 0;
         this.currentHits = 0;
         this.currentPowerupsCollected = 0;
-        this.currentWeaponKills = { normal: 0, laser: 0, homing: 0, explosive: 0 };
+        this.currentWeaponKills = { normal: 0, homing: 0, explosive: 0 };
     }
 
     toJSON() {

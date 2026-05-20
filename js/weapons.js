@@ -5,7 +5,6 @@
  */
 export const WEAPON_TYPES = {
     NORMAL: 'normal',
-    LASER: 'laser',
     HOMING: 'homing',
     EXPLOSIVE: 'explosive'
 };
@@ -14,13 +13,12 @@ export const WEAPON_TYPES = {
  * Weapon display info for HUD
  */
 export const WEAPON_INFO = {
-    [WEAPON_TYPES.NORMAL]:   { name: 'VULCAN',  color: '#88ccff' },
-    [WEAPON_TYPES.LASER]:   { name: 'LASER',   color: '#ff4488' },
-    [WEAPON_TYPES.HOMING]:  { name: 'HOMING',  color: '#00ff88' },
+    [WEAPON_TYPES.NORMAL]:    { name: 'VULCAN',  color: '#88ccff' },
+    [WEAPON_TYPES.HOMING]:    { name: 'HOMING',  color: '#00ff88' },
     [WEAPON_TYPES.EXPLOSIVE]: { name: 'BLAST',   color: '#ff8800' },
 };
 
-const WEAPON_CYCLE = [WEAPON_TYPES.NORMAL, WEAPON_TYPES.LASER, WEAPON_TYPES.HOMING, WEAPON_TYPES.EXPLOSIVE];
+const WEAPON_CYCLE = [WEAPON_TYPES.NORMAL, WEAPON_TYPES.HOMING, WEAPON_TYPES.EXPLOSIVE];
 
 /**
  * Weapon system class
@@ -34,12 +32,6 @@ export class WeaponSystem {
         this.currentWeapon = WEAPON_TYPES.NORMAL;
         this.weapons = new Map();
 
-        // Energy system for laser
-        this.energy = 100;
-        this.maxEnergy = 100;
-        this.energyRegen = 0.5; // per frame
-        this.laserCost = 2; // per frame
-
         // Safety: frames since last successful fire (prevents cooldown stuck)
         this._lastFired = 0;
         this._forceFireThreshold = 120; // force fire after 120 frames of no fire
@@ -52,19 +44,6 @@ export class WeaponSystem {
             type: WEAPON_TYPES.NORMAL,
             damage: 1,
             fireRate: 6,
-            fireCooldown: 0,
-            level: 1,
-            maxLevel: 5
-        });
-
-        this.weapons.set(WEAPON_TYPES.LASER, {
-            type: WEAPON_TYPES.LASER,
-            damagePerSecond: 5,
-            damageTimer: 0,
-            isFiring: false,
-            laserLength: 800,
-            laserWidth: 4,
-            energyCost: 2,
             fireCooldown: 0,
             level: 1,
             maxLevel: 5
@@ -108,16 +87,6 @@ export class WeaponSystem {
                 if (weapon.fireCooldown < 0) weapon.fireCooldown = 0;
             }
         }
-
-        // Energy regeneration (frame-rate independent)
-        if (this.energy < this.maxEnergy) {
-            this.energy = Math.min(this.maxEnergy, this.energy + this.energyRegen * dt * 60);
-        }
-
-        // Laser continuous damage
-        if (this.currentWeapon === WEAPON_TYPES.LASER) {
-            this._updateLaser(dt, playerX, playerY, enemies);
-        }
     }
 
     fire(x, y, enemies) {
@@ -146,9 +115,6 @@ export class WeaponSystem {
             case WEAPON_TYPES.NORMAL:
                 this._fireNormal(x, y);
                 weapon.fireCooldown = weapon.fireRate;
-                break;
-            case WEAPON_TYPES.LASER:
-                this._fireLaser(x, y);
                 break;
             case WEAPON_TYPES.HOMING:
                 this._fireHoming(x, y, enemies);
@@ -202,60 +168,12 @@ export class WeaponSystem {
         this.audio.playShoot();
     }
 
-    _fireLaser(x, y) {
-        const weapon = this.weapons.get(WEAPON_TYPES.LASER);
-        if (this.energy >= weapon.energyCost) {
-            weapon.isFiring = true;
-            this.audio.playShoot();
-        }
-    }
-
-    _updateLaser(dt, playerX, playerY, enemies) {
-        const weapon = this.weapons.get(WEAPON_TYPES.LASER);
-        if (!weapon.isFiring || this.energy < weapon.energyCost) {
-            weapon.isFiring = false;
-            // Auto-switch back to NORMAL when out of energy to prevent "no bullets" confusion
-            if (this.energy < weapon.energyCost && this.currentWeapon === WEAPON_TYPES.LASER) {
-                this.switchWeapon(WEAPON_TYPES.NORMAL);
-                if (this.player) {
-                    this.player.currentWeaponType = WEAPON_TYPES.NORMAL;
-                }
-            }
-            return;
-        }
-
-        // Consume energy
-        this.energy = Math.max(0, this.energy - weapon.energyCost);
-        weapon.damageTimer += dt * 60;
-
-        // Apply damage to enemies in line
-        if (enemies && weapon.damageTimer >= 12) { // damage every 12 frames
-            weapon.damageTimer = 0;
-            const cx = playerX + this.player.width / 2;
-            const cy = playerY;
-
-            for (const enemy of enemies) {
-                if (!enemy.active) continue;
-
-                // Simple line collision detection
-                const enemyCX = enemy.x + enemy.width / 2;
-                const enemyCY = enemy.y + enemy.height / 2;
-
-                if (Math.abs(enemyCX - cx) < enemy.width / 2 + weapon.laserWidth / 2 &&
-                    enemyCY < cy && enemyCY > cy - weapon.laserLength) {
-                    if (enemy.hit) {
-                        enemy.hit(weapon.damagePerSecond / 5);
-                    } else {
-                        enemy.hp -= weapon.damagePerSecond / 5;
-                    }
-                }
-            }
-        }
-
-        // Stop firing if out of energy
-        if (this.energy <= 0) {
-            weapon.isFiring = false;
-        }
+    /**
+     * Boss reference setter (kept as a no-op for backward compatibility
+     * with main.js. The laser weapon previously used this hook.)
+     */
+    setBossRef(_boss) {
+        // no-op
     }
 
     _fireHoming(x, y, enemies) {
@@ -298,17 +216,11 @@ export class WeaponSystem {
             // Reset fire cooldown on switch so the new weapon can fire immediately
             const weapon = this.weapons.get(type);
             if (weapon) weapon.fireCooldown = 0;
-            // Stop laser if switching away
-            if (type !== WEAPON_TYPES.LASER) {
-                const laser = this.weapons.get(WEAPON_TYPES.LASER);
-                if (laser) laser.isFiring = false;
-            }
         }
     }
 
     reset() {
         this.currentWeapon = WEAPON_TYPES.NORMAL;
-        this.energy = this.maxEnergy;
         this._initWeapons();
     }
 
@@ -342,46 +254,8 @@ export class WeaponSystem {
         return WEAPON_CYCLE[nextIndex];
     }
 
-    getEnergy() {
-        return this.energy;
-    }
-
-    getMaxEnergy() {
-        return this.maxEnergy;
-    }
-
-    // Kill energy restore
+    // Kill callback hook (kept for parity; energy system removed)
     onKill() {
-        this.energy = Math.min(this.maxEnergy, this.energy + 10);
-    }
-
-    drawLaser(ctx, playerX, playerY) {
-        const weapon = this.weapons.get(WEAPON_TYPES.LASER);
-        if (!weapon.isFiring) return;
-
-        // playerX is already center of player
-        const cx = playerX;
-
-        ctx.save();
-        ctx.strokeStyle = '#00ffff';
-        ctx.lineWidth = weapon.laserWidth;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#00ffff';
-        ctx.globalAlpha = 0.8;
-
-        ctx.beginPath();
-        ctx.moveTo(cx, playerY);
-        ctx.lineTo(cx, playerY - weapon.laserLength);
-        ctx.stroke();
-
-        // Laser glow
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = weapon.laserWidth / 2;
-        ctx.beginPath();
-        ctx.moveTo(cx, playerY);
-        ctx.lineTo(cx, playerY - weapon.laserLength);
-        ctx.stroke();
-
-        ctx.restore();
+        // no-op
     }
 }

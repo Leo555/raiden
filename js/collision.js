@@ -1,10 +1,10 @@
 // collision.js - Collision detection system (Enhanced with Combo & Graze)
 
-import { circleCollision, rectCollision, distance } from './utils.js';
+import { circleCollision, rectCollision, distance, GAME_WIDTH, GAME_HEIGHT } from './utils.js';
 import { SuicideEnemy } from './enemies.js';
 
 export class CollisionSystem {
-    constructor(player, bullets, enemySystem, boss, powerups, particles, combo, floatingText, audio, challenge = null) {
+    constructor(player, bullets, enemySystem, boss, powerups, particles, combo, floatingText, audio, challenge = null, ui = null) {
         this.player = player;
         this.bullets = bullets;
         this.enemySystem = enemySystem;
@@ -15,6 +15,7 @@ export class CollisionSystem {
         this.floatingText = floatingText;
         this.audio = audio;
         this.challenge = challenge;
+        this.ui = ui;
 
         // Graze settings
         this.grazeDistance = 20; // Outer graze radius
@@ -27,6 +28,10 @@ export class CollisionSystem {
 
     update(dt) {
         if (!this.player.active) return;
+
+        // Check if any nuke bullets have reached the upper third of the screen
+        // and auto-detonate (so a nuke is never wasted on an empty screen).
+        this._checkNukeAutoDetonate();
 
         this._playerBulletsVsEnemies();
         this._playerBulletsVsBoss();
@@ -42,6 +47,19 @@ export class CollisionSystem {
             this.grazeConsecutiveTimer -= dt;
             if (this.grazeConsecutiveTimer <= 0) {
                 this.grazeConsecutive = 0;
+            }
+        }
+    }
+
+    _checkNukeAutoDetonate() {
+        const detonateY = GAME_HEIGHT * 0.4; // upper-mid area
+        const playerBullets = this.bullets.playerBullets;
+        for (let i = playerBullets.length - 1; i >= 0; i--) {
+            const b = playerBullets[i];
+            if (b.type === 'nuke' && b.y <= detonateY) {
+                this._handleNukeAOE(b);
+                playerBullets.splice(i, 1);
+                this.bullets.pool.release(b);
             }
         }
     }
@@ -106,6 +124,10 @@ export class CollisionSystem {
                         if (b.type === 'explosive') {
                             this._handleExplosiveAOE(b, e);
                         }
+                        // Handle nuke - massive AOE that destroys most enemies on screen
+                        if (b.type === 'nuke') {
+                            this._handleNukeAOE(b);
+                        }
                     }
 
                     // Remove bullet (unless it's a piercing laser at level 5)
@@ -146,6 +168,129 @@ export class CollisionSystem {
                 this.enemySystem.damageEnemy(enemy, aoEDamage);
             }
         }
+    }
+
+    /**
+     * NUKE detonation: ULTIMATE WEAPON.
+     * - Destroys/heavily damages ALL enemies on screen (no radius limit)
+     * - Massive damage to boss
+     * - Clears ALL enemy bullets on screen
+     * - Full-screen white flash + intense screen shake
+     * - Spectacular particle wave radiating across the entire screen
+     */
+    _handleNukeAOE(bullet) {
+        const bx = bullet.x;
+        const by = bullet.y;
+        const enemyDamage = 999;     // one-shot any normal enemy
+        const bossDamage = 50;        // huge chunk of boss HP
+
+        // ---- Soft pink flash (less intense than pure white) ----
+        if (this.ui && this.ui.flash) {
+            this.ui.flash('#ff88cc', 0.4);
+        }
+
+        // ---- Intense screen shake ----
+        if (this.ui && this.ui.shake) {
+            this.ui.shake(20);
+        }
+
+        // ---- Audio ----
+        if (this.audio && this.audio.playBomb) {
+            this.audio.playBomb();
+        }
+
+        // ---- Center explosion (epicenter) ----
+        if (this.particles) {
+            this.particles.explode(bx, by, '#ffffff', 50);
+            this.particles.explode(bx, by, '#ff2299', 40);
+            this.particles.explode(bx, by, '#ff66cc', 30);
+        }
+
+        // ---- Expanding shockwave: rings of particles spreading outward ----
+        if (this.particles) {
+            // Inner ring
+            for (let i = 0; i < 24; i++) {
+                const a = (i / 24) * Math.PI * 2;
+                const r = 80;
+                this.particles.explode(bx + Math.cos(a) * r, by + Math.sin(a) * r, '#ff44aa', 1.5);
+            }
+            // Mid ring
+            for (let i = 0; i < 32; i++) {
+                const a = (i / 32) * Math.PI * 2 + 0.1;
+                const r = 180;
+                this.particles.explode(bx + Math.cos(a) * r, by + Math.sin(a) * r, '#ff88cc', 1.2);
+            }
+            // Outer ring
+            for (let i = 0; i < 40; i++) {
+                const a = (i / 40) * Math.PI * 2 + 0.2;
+                const r = 300;
+                this.particles.explode(bx + Math.cos(a) * r, by + Math.sin(a) * r, '#ffaadd', 0.8);
+            }
+            // Random scattered debris across the entire screen
+            for (let i = 0; i < 60; i++) {
+                const ex = Math.random() * GAME_WIDTH;
+                const ey = Math.random() * GAME_HEIGHT;
+                const colors = ['#ff2299', '#ff66cc', '#ffaadd', '#ffffff'];
+                const color = colors[i % colors.length];
+                this.particles.explode(ex, ey, color, 0.6 + Math.random() * 0.6);
+            }
+        }
+
+        // ---- DESTROY ALL enemies on screen ----
+        for (const enemy of this.enemySystem.enemies) {
+            if (!enemy.active) continue;
+            const enemyCX = enemy.x + enemy.width / 2;
+            const enemyCY = enemy.y + enemy.height / 2;
+
+            // Stagger small explosion at each enemy position for visual impact
+            if (this.particles) {
+                this.particles.explode(enemyCX, enemyCY, '#ff66cc', 1.5);
+            }
+
+            const destroyed = this.enemySystem.damageEnemy(enemy, enemyDamage);
+            if (destroyed) {
+                let finalScore = enemy.score;
+                if (this.combo) finalScore = this.combo.addKill(enemy.score);
+                this.player.score += finalScore;
+                if (this.challenge && this.challenge.isActive) {
+                    this.challenge.onEnemyKill(finalScore);
+                }
+                if (this.floatingText) {
+                    this.floatingText.spawnScore(enemyCX, enemyCY, finalScore);
+                }
+            }
+        }
+
+        // ---- Massive damage to boss (anywhere on screen) ----
+        if (this.boss.active && !this.boss.entering && !this.boss.defeated) {
+            this.boss.damage(bossDamage);
+            if (this.floatingText) {
+                this.floatingText.spawnCritical(
+                    this.boss.x + this.boss.width / 2,
+                    this.boss.y + this.boss.height / 2,
+                    bossDamage
+                );
+            }
+        }
+
+        // ---- Clear ALL enemy bullets on screen ----
+        const enemyBullets = this.bullets.enemyBullets;
+        // Spawn small particle puffs where each bullet was, for visual feedback
+        if (this.particles) {
+            for (const eb of enemyBullets) {
+                this.particles.emit(eb.x, eb.y, 2, {
+                    speed: 1.5,
+                    size: 2,
+                    life: 12,
+                    color: '#ffaadd'
+                });
+            }
+        }
+        // Release all enemy bullets back to the pool
+        for (let i = enemyBullets.length - 1; i >= 0; i--) {
+            this.bullets.pool.release(enemyBullets[i]);
+        }
+        this.bullets.enemyBullets = [];
     }
 
     _playerBulletsVsBoss() {
@@ -199,6 +344,10 @@ export class CollisionSystem {
                             bossScore
                         );
                     }
+                }
+                // Trigger nuke AOE when a nuke directly hits the boss
+                if (b.type === 'nuke') {
+                    this._handleNukeAOE(b);
                 }
                 bullets.splice(bi, 1);
                 this.bullets.pool.release(b);

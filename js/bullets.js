@@ -93,6 +93,31 @@ export class BulletSystem {
         this.playerBullets.push(b);
     }
 
+    /**
+     * Fire a heavy nuke bullet (one-shot AOE charge from picking up the N power-up).
+     * Slow, large, glowing pink bullet that triggers a massive AOE explosion on hit
+     * (or when reaching the upper part of the screen).
+     */
+    fireNuke(x, y) {
+        const b = this.pool.get();
+        b.x = x;
+        b.y = y;
+        b.vx = 0;
+        b.vy = -4;          // slow
+        b.damage = 8;       // heavy direct damage
+        b.active = true;
+        b.isPlayerBullet = true;
+        b.type = 'nuke';    // recognized in collision.js → triggers big AOE
+        b.color = '#ff2299';
+        b.width = 16;
+        b.height = 16;
+        b.radius = 9;
+        b.life = 240;
+        b.age = 0;
+        b.pulsePhase = 0;
+        this.playerBullets.push(b);
+    }
+
     fireEnemyBullet(x, y, vx, vy, type = 'enemy', color = '#ff4444') {
         const b = this.pool.get();
         b.x = x;
@@ -298,7 +323,16 @@ export class BulletSystem {
                 b.trailTimer = 0;
                 if (b.type === 'missile') {
                     this.particles.trail(b.x, b.y + 5, '#ff6600');
+                } else if (b.type === 'nuke') {
+                    this.particles.trail(b.x, b.y + 8, '#ff44aa');
+                    this.particles.trail(b.x + (Math.random() - 0.5) * 6, b.y + 5, '#ff88cc');
                 }
+            }
+
+            // Nuke pulsing animation
+            if (b.type === 'nuke') {
+                b.age = (b.age || 0) + dt * 60;
+                b.pulsePhase = b.age * 0.2;
             }
 
             if (b.y < -20 || b.y > GAME_HEIGHT + 20 || b.x < -20 || b.x > GAME_WIDTH + 20 || b.life <= 0) {
@@ -441,6 +475,57 @@ export class BulletSystem {
                 ctx.fill();
                 ctx.fillStyle = '#ffcc00';
                 ctx.fillRect(-1, 3, 2, 4);
+            } else if (b.type === 'nuke') {
+                // Pulsing outer aura
+                const pulse = 1 + Math.sin(b.pulsePhase || 0) * 0.25;
+                const outerR = b.radius * 2.2 * pulse;
+
+                // Outer glow ring
+                ctx.fillStyle = 'rgba(255, 34, 153, 0.18)';
+                ctx.shadowBlur = 25;
+                ctx.shadowColor = '#ff2299';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, outerR, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Mid ring
+                ctx.fillStyle = 'rgba(255, 102, 187, 0.45)';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius * 1.4 * pulse, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Main body
+                ctx.fillStyle = b.color;
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Rotating spike shell (4 spikes)
+                ctx.strokeStyle = '#ffffff';
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = '#ffffff';
+                ctx.lineWidth = 1.5;
+                const rot = b.pulsePhase || 0;
+                for (let i = 0; i < 4; i++) {
+                    const a = rot + (i / 4) * Math.PI * 2;
+                    const x1 = b.x + Math.cos(a) * b.radius * 0.6;
+                    const y1 = b.y + Math.sin(a) * b.radius * 0.6;
+                    const x2 = b.x + Math.cos(a) * b.radius * 1.5;
+                    const y2 = b.y + Math.sin(a) * b.radius * 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+                }
+
+                // White-hot core
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius * 0.4, 0, Math.PI * 2);
+                ctx.fill();
             } else {
                 ctx.fillStyle = b.color;
                 ctx.shadowBlur = 6;

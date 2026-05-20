@@ -31,7 +31,7 @@ export class UISystem {
             this.screenShake -= dt * 60;
         }
         if (this.flashAlpha > 0) {
-            this.flashAlpha -= dt * 2;
+            this.flashAlpha -= dt * 3.5;
         }
         for (let i = this.notifications.length - 1; i >= 0; i--) {
             this.notifications[i].timer -= dt * 60;
@@ -99,19 +99,27 @@ export class UISystem {
             buffY -= buffLineH;
         }
 
+        // Super shield buff
+        if (player.superShieldTimer > 0) {
+            const sec = Math.ceil(player.superShieldTimer / 60);
+            ctx.fillStyle = '#ffee44';
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText(`SUPER SHIELD: ${sec}S`, 10, buffY);
+            buffY -= buffLineH;
+        }
+
         if (powerups && typeof powerups.drawActiveEffectsOn === 'function') {
             powerups.drawActiveEffectsOn(ctx, buffY, buffLineH);
         }
 
         // ==========================================================
-        // RIGHT-BOTTOM AREA: weapon info + energy + level
+        // RIGHT-BOTTOM AREA: weapon info + level
         // ==========================================================
         const weaponInfo = player.getWeaponInfo ? player.getWeaponInfo() : null;
         if (weaponInfo) {
             // Show current weapon type
             const weaponNames = {
                 'normal': 'NORMAL',
-                'laser': 'LASER',
                 'homing': 'HOMING',
                 'explosive': 'EXPLOSIVE'
             };
@@ -120,34 +128,6 @@ export class UISystem {
             ctx.font = '12px monospace';
             ctx.textAlign = 'left';
             ctx.fillText(`WEAPON: ${weaponName}`, GAME_WIDTH - 150, GAME_HEIGHT - 15);
-
-            // Energy bar for laser
-            if (weaponInfo.energy !== undefined) {
-                const barWidth = 100;
-                const barHeight = 6;
-                const barX = GAME_WIDTH - 150;
-                const barY = GAME_HEIGHT - 30;
-
-                // Background
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                ctx.fillRect(barX, barY, barWidth, barHeight);
-
-                // Energy fill
-                const energyRatio = weaponInfo.energy / weaponInfo.maxEnergy;
-                const energyColor = energyRatio > 0.5 ? '#00ffff' : energyRatio > 0.25 ? '#ffaa00' : '#ff4444';
-                ctx.fillStyle = energyColor;
-                ctx.fillRect(barX, barY, barWidth * energyRatio, barHeight);
-
-                // Border
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(barX, barY, barWidth, barHeight);
-
-                // Label
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '9px monospace';
-                ctx.fillText('ENERGY', barX, barY - 2);
-            }
         } else {
             // Fallback to weapon level display
             ctx.fillStyle = '#ff8844';

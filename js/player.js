@@ -48,6 +48,9 @@ export class Player {
         this.rapidFireDuration = 0;
         this._originalFireRate = {}; // Store original fireRate for each weapon
 
+        // Super shield: full damage immunity for a duration (frames)
+        this.superShieldTimer = 0;
+
         this.engineFlicker = 0;
 
         // Weapon system
@@ -83,6 +86,7 @@ export class Player {
         this.currentWeaponType = WEAPON_TYPES.NORMAL;
         this._originalFireRate = {};
         this.rapidFireDuration = 0;
+        this.superShieldTimer = 0;
         if (this.weaponSystem) {
             this.weaponSystem.reset();
         }
@@ -177,6 +181,12 @@ export class Player {
             }
         }
 
+        // Super shield (full damage immunity)
+        if (this.superShieldTimer > 0) {
+            this.superShieldTimer -= dt * 60;
+            if (this.superShieldTimer < 0) this.superShieldTimer = 0;
+        }
+
         // Auto shoot with weapon system (let WeaponSystem handle cooldown internally)
         this._shoot(enemies);
 
@@ -229,19 +239,14 @@ export class Player {
             this.input.clearKey('Numpad1');
         }
         if (this.input.isKeyDown('Digit2') || this.input.isKeyDown('Numpad2')) {
-            this._switchWeapon(WEAPON_TYPES.LASER);
+            this._switchWeapon(WEAPON_TYPES.HOMING);
             this.input.clearKey('Digit2');
             this.input.clearKey('Numpad2');
         }
         if (this.input.isKeyDown('Digit3') || this.input.isKeyDown('Numpad3')) {
-            this._switchWeapon(WEAPON_TYPES.HOMING);
+            this._switchWeapon(WEAPON_TYPES.EXPLOSIVE);
             this.input.clearKey('Digit3');
             this.input.clearKey('Numpad3');
-        }
-        if (this.input.isKeyDown('Digit4') || this.input.isKeyDown('Numpad4')) {
-            this._switchWeapon(WEAPON_TYPES.EXPLOSIVE);
-            this.input.clearKey('Digit4');
-            this.input.clearKey('Numpad4');
         }
     }
 
@@ -276,14 +281,6 @@ export class Player {
 
         // Use weapon system to fire
         this.weaponSystem.fire(cx, cy, enemies);
-
-        // Draw laser if firing
-        if (this.currentWeaponType === WEAPON_TYPES.LASER) {
-            const weapon = this.weaponSystem.weapons.get(WEAPON_TYPES.LASER);
-            if (weapon && weapon.isFiring) {
-                // Laser is drawn in weapon system
-            }
-        }
     }
 
     _defaultShoot() {
@@ -360,6 +357,17 @@ export class Player {
 
     hit() {
         if (this.invincible || !this.active) return;
+
+        // Super shield: full immunity, just visual feedback
+        if (this.superShieldTimer > 0) {
+            this.particles.emit(this.x + this.width / 2, this.y + this.height / 2, 6, {
+                speed: 3,
+                size: 2,
+                life: 12,
+                color: '#ffff44'
+            });
+            return;
+        }
 
         this.audio.playHit();
 
@@ -439,6 +447,32 @@ export class Player {
         this.audio.playPowerup();
     }
 
+    /**
+     * Pick up a NUKE charge - immediately fire a single heavy AOE projectile.
+     * On hit (or when reaching upper screen), it triggers a massive explosion.
+     */
+    addNukeCharge() {
+        if (this.bullets && this.bullets.fireNuke) {
+            this.bullets.fireNuke(this.x + this.width / 2, this.y);
+        }
+        // Heavier audio cue than a normal pickup
+        if (this.audio.playBomb) {
+            this.audio.playBomb();
+        } else {
+            this.audio.playPowerup();
+        }
+    }
+
+    /**
+     * Activate the super shield: full damage immunity for the given duration (frames).
+     * Multiple pickups extend rather than overwrite (max stack at 30s).
+     */
+    activateSuperShield(durationFrames) {
+        const maxStack = 30 * 60; // 30 seconds cap
+        this.superShieldTimer = Math.min(maxStack, this.superShieldTimer + durationFrames);
+        this.audio.playPowerup();
+    }
+
     // Activate duration-based shield (absorbs 3 hits over 10 seconds)
     activateShield(duration, hits) {
         this.shieldDuration = duration;
@@ -478,9 +512,7 @@ export class Player {
     getWeaponInfo() {
         if (!this.weaponSystem) return null;
         return {
-            type: this.currentWeaponType,
-            energy: this.weaponSystem.energy,
-            maxEnergy: this.weaponSystem.maxEnergy
+            type: this.currentWeaponType
         };
     }
 
@@ -558,42 +590,120 @@ export class Player {
             ctx.stroke();
         }
 
-        // Draw laser if active
-        if (this.weaponSystem && this.currentWeaponType === WEAPON_TYPES.LASER) {
-            const weapon = this.weaponSystem.weapons.get(WEAPON_TYPES.LASER);
-            if (weapon && weapon.isFiring) {
-                // Pass player top position (nose of ship) for laser start
-                this._drawLaserBeam(ctx, cx, this.y);
+        // Super shield indicator - large hi-tech energy bubble
+        if (this.superShieldTimer > 0) {
+            const remainingSec = this.superShieldTimer / 60;
+            // Flicker faster when about to expire (last 2 sec)
+            const isExpiring = remainingSec < 2;
+            const flickerSkip = isExpiring && Math.floor(this.engineFlicker * 0.5) % 2 === 0;
+
+            if (!flickerSkip) {
+                ctx.save();
+                const pulse = 1 + Math.sin(this.engineFlicker * 0.12) * 0.06;
+                const baseR = 45;
+                const radius = baseR * pulse;
+
+                // -------- Layer 1: Soft outer aura (fills the bubble) --------
+                const grad = ctx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius);
+                grad.addColorStop(0, 'rgba(120, 220, 255, 0.0)');
+                grad.addColorStop(0.7, 'rgba(120, 220, 255, 0.12)');
+                grad.addColorStop(1, 'rgba(255, 220, 80, 0.25)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // -------- Layer 2: Outer hex ring (rotating clockwise) --------
+                const rotCW = this.engineFlicker * 0.04;
+                ctx.strokeStyle = `rgba(255, 220, 80, ${0.85 + Math.sin(this.engineFlicker * 0.15) * 0.15})`;
+                ctx.lineWidth = 2.5;
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = '#ffee44';
+                ctx.beginPath();
+                for (let i = 0; i <= 6; i++) {
+                    const a = rotCW + (i / 6) * Math.PI * 2;
+                    const px = cx + Math.cos(a) * radius;
+                    const py = cy + Math.sin(a) * radius;
+                    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // -------- Layer 3: Inner hex ring (rotating counter-clockwise) --------
+                const rotCCW = -this.engineFlicker * 0.06;
+                const innerR = radius - 7;
+                ctx.strokeStyle = `rgba(150, 230, 255, ${0.7 + Math.sin(this.engineFlicker * 0.2) * 0.2})`;
+                ctx.lineWidth = 1.5;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#88ccff';
+                ctx.beginPath();
+                for (let i = 0; i <= 6; i++) {
+                    const a = rotCCW + (i / 6) * Math.PI * 2 + Math.PI / 6;
+                    const px = cx + Math.cos(a) * innerR;
+                    const py = cy + Math.sin(a) * innerR;
+                    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // -------- Layer 4: Energy spokes connecting the two rings --------
+                ctx.strokeStyle = `rgba(255, 255, 200, ${0.5 + Math.sin(this.engineFlicker * 0.25) * 0.3})`;
+                ctx.lineWidth = 1;
+                ctx.shadowBlur = 6;
+                for (let i = 0; i < 6; i++) {
+                    const a = rotCW + (i / 6) * Math.PI * 2;
+                    const x1 = cx + Math.cos(a) * radius;
+                    const y1 = cy + Math.sin(a) * radius;
+                    const x2 = cx + Math.cos(a + Math.PI / 6) * innerR;
+                    const y2 = cy + Math.sin(a + Math.PI / 6) * innerR;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+                }
+
+                // -------- Layer 5: Bright corner nodes on outer hex --------
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#ffffff';
+                for (let i = 0; i < 6; i++) {
+                    const a = rotCW + (i / 6) * Math.PI * 2;
+                    const px = cx + Math.cos(a) * radius;
+                    const py = cy + Math.sin(a) * radius;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // -------- Layer 6: Orbiting energy particles (3 particles around the shield) --------
+                ctx.fillStyle = '#ffff88';
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = '#ffee44';
+                for (let i = 0; i < 3; i++) {
+                    const a = this.engineFlicker * 0.08 + (i / 3) * Math.PI * 2;
+                    const orbitR = radius + 8 + Math.sin(this.engineFlicker * 0.15 + i) * 3;
+                    const px = cx + Math.cos(a) * orbitR;
+                    const py = cy + Math.sin(a) * orbitR;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // -------- Layer 7: Reactive arc segments (rotates with the inner ring) --------
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2.5;
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = '#ffffff';
+                const arcRot = this.engineFlicker * 0.03;
+                for (let i = 0; i < 4; i++) {
+                    const startA = arcRot + (i / 4) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius + 4, startA, startA + Math.PI * 0.18);
+                    ctx.stroke();
+                }
+                ctx.restore();
             }
         }
 
         ctx.restore();
-        ctx.globalAlpha = 1;
-    }
-
-    _drawLaserBeam(ctx, cx, cy) {
-        ctx.strokeStyle = '#00ffff';
-        ctx.lineWidth = 4;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#00ffff';
-        ctx.globalAlpha = 0.8;
-
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx, 0);
-        ctx.stroke();
-
-        // Laser glow
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(cx - 1, cy);
-        ctx.lineTo(cx - 1, 0);
-        ctx.moveTo(cx + 1, cy);
-        ctx.lineTo(cx + 1, 0);
-        ctx.stroke();
-
-        ctx.shadowBlur = 0;
         ctx.globalAlpha = 1;
     }
 }

@@ -46,6 +46,10 @@ class Game {
         this.enemySystem = new EnemySystem(this.bullets, this.particles, this.audio, this.powerups);
         this.boss = new Boss(this.bullets, this.particles, this.audio, this.powerups);
         this.levelManager = new LevelManager(this.enemySystem, this.boss, this.audio);
+        // Provide boss reference to weapon system (legacy hook, currently no-op)
+        if (this.player.weaponSystem && this.player.weaponSystem.setBossRef) {
+            this.player.weaponSystem.setBossRef(this.boss);
+        }
         this.ui = new UISystem();
 
         // New systems
@@ -68,7 +72,7 @@ class Game {
             this.player, this.bullets, this.enemySystem,
             this.boss, this.powerups, this.particles,
             this.combo, this.floatingText, this.audio,
-            this.challenge
+            this.challenge, this.ui
         );
 
         this.levelCompleteTimer = 0;

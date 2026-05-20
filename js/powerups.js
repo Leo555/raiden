@@ -11,7 +11,9 @@ export const POWERUP_TYPES = {
     LIFE: '1UP',     // Extra life (instant)
     RAPID_FIRE: 'F',  // Rapid fire (duration-based, fire rate x2)
     HEALTH: 'H',      // Health restore (instant, 30% HP)
-    WEAPON: 'W'       // Switch to next weapon type (instant)
+    WEAPON: 'W',      // Switch to next weapon type (instant)
+    NUKE: 'N',        // One-shot heavy AOE nuke charge (rare)
+    SUPER_SHIELD: 'X' // Super shield: full damage immunity for 10s (rare)
 };
 
 class PowerUp {
@@ -59,17 +61,20 @@ export class PowerUpSystem {
     }
 
     _randomType() {
+        // Balanced distribution: common buffs cover 70%, special buffs 18%, rare 12%
+        // Each rare item is now 4-6%, much more discoverable than before.
         const rand = Math.random();
-        if (rand < 0.25) return POWERUP_TYPES.POWER;
-        if (rand < 0.40) return POWERUP_TYPES.BOMB;
-        if (rand < 0.55) return POWERUP_TYPES.SHIELD;
-        if (rand < 0.65) return POWERUP_TYPES.MISSILE;
-        if (rand < 0.80) return POWERUP_TYPES.COIN;
-        if (rand < 0.90) return POWERUP_TYPES.RAPID_FIRE;
-        if (rand < 0.95) return POWERUP_TYPES.HEALTH;
-        // 5% chance for weapon switch (W)
-        if (rand < 0.98) return POWERUP_TYPES.LIFE;
-        return POWERUP_TYPES.WEAPON;
+        if (rand < 0.18) return POWERUP_TYPES.POWER;        // 18% - weapon level up
+        if (rand < 0.30) return POWERUP_TYPES.BOMB;          // 12% - extra bomb
+        if (rand < 0.42) return POWERUP_TYPES.SHIELD;        // 12% - 3-hit shield
+        if (rand < 0.54) return POWERUP_TYPES.COIN;          // 12% - +500 score
+        if (rand < 0.62) return POWERUP_TYPES.MISSILE;       // 8%  - temp missile
+        if (rand < 0.70) return POWERUP_TYPES.RAPID_FIRE;    // 8%  - rapid fire
+        if (rand < 0.76) return POWERUP_TYPES.HEALTH;        // 6%  - +30% HP
+        if (rand < 0.82) return POWERUP_TYPES.SUPER_SHIELD;  // 6%  - 10s immunity
+        if (rand < 0.88) return POWERUP_TYPES.NUKE;          // 6%  - screen-clear nuke
+        if (rand < 0.94) return POWERUP_TYPES.WEAPON;        // 6%  - weapon switch
+        return POWERUP_TYPES.LIFE;                            // 6%  - extra life
     }
 
     update(dt) {
@@ -151,6 +156,14 @@ export class PowerUpSystem {
                     }
                 }
                 break;
+            case POWERUP_TYPES.NUKE:
+                // Add a one-shot nuke charge
+                player.addNukeCharge();
+                break;
+            case POWERUP_TYPES.SUPER_SHIELD:
+                // Full damage immunity for 10 seconds
+                player.activateSuperShield(600);
+                break;
         }
 
         // Remove from array
@@ -186,6 +199,8 @@ export class PowerUpSystem {
             case POWERUP_TYPES.RAPID_FIRE: return '#ffff00';
             case POWERUP_TYPES.HEALTH: return '#00ff88';
             case POWERUP_TYPES.WEAPON: return '#ff00ff';  // Purple for weapon switch
+            case POWERUP_TYPES.NUKE: return '#ff2299';    // Hot pink for nuke
+            case POWERUP_TYPES.SUPER_SHIELD: return '#ffee44'; // Gold for super shield
             default: return '#ffffff';
         }
     }
