@@ -154,9 +154,6 @@ export class Player {
         this.x = clamp(this.x, 0, GAME_WIDTH - this.width);
         this.y = clamp(this.y, 0, GAME_HEIGHT - this.height);
 
-        // Weapon switch (keyboard 1-4)
-        this._handleWeaponSwitch();
-
         // Rapid fire duration countdown
         if (this.rapidFireDuration > 0) {
             this.rapidFireDuration -= dt * 60;
@@ -230,32 +227,6 @@ export class Player {
         if (this.weaponSystem) {
             this.weaponSystem.update(dt, this.x, this.y, enemies);
         }
-    }
-
-    _handleWeaponSwitch() {
-        if (this.input.isKeyDown('Digit1') || this.input.isKeyDown('Numpad1')) {
-            this._switchWeapon(WEAPON_TYPES.NORMAL);
-            this.input.clearKey('Digit1');
-            this.input.clearKey('Numpad1');
-        }
-        if (this.input.isKeyDown('Digit2') || this.input.isKeyDown('Numpad2')) {
-            this._switchWeapon(WEAPON_TYPES.HOMING);
-            this.input.clearKey('Digit2');
-            this.input.clearKey('Numpad2');
-        }
-        if (this.input.isKeyDown('Digit3') || this.input.isKeyDown('Numpad3')) {
-            this._switchWeapon(WEAPON_TYPES.EXPLOSIVE);
-            this.input.clearKey('Digit3');
-            this.input.clearKey('Numpad3');
-        }
-    }
-
-    _switchWeapon(type) {
-        this.currentWeaponType = type;
-        if (this.weaponSystem) {
-            this.weaponSystem.switchWeapon(type);
-        }
-        this.audio.playPowerup();
     }
 
     _shoot(enemies) {

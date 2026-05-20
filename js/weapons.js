@@ -18,8 +18,6 @@ export const WEAPON_INFO = {
     [WEAPON_TYPES.EXPLOSIVE]: { name: 'BLAST',   color: '#ff8800' },
 };
 
-const WEAPON_CYCLE = [WEAPON_TYPES.NORMAL, WEAPON_TYPES.HOMING, WEAPON_TYPES.EXPLOSIVE];
-
 /**
  * Weapon system class
  */
@@ -283,13 +281,13 @@ export class WeaponSystem {
     }
 
     /**
-     * Switch to next weapon in cycle (called when collecting W powerup)
+     * Switch to next weapon in cycle.
+     * @deprecated Weapon switching has been removed - the player now only
+     * uses NORMAL with progressive level-up via the P powerup. This method
+     * is kept as a no-op safety net in case any caller still references it.
      */
     switchToNextWeapon() {
-        const currentIndex = WEAPON_CYCLE.indexOf(this.currentWeapon);
-        const nextIndex = (currentIndex + 1) % WEAPON_CYCLE.length;
-        this.switchWeapon(WEAPON_CYCLE[nextIndex]);
-        return WEAPON_CYCLE[nextIndex];
+        return this.currentWeapon;
     }
 
     // Kill callback hook (kept for parity; energy system removed)

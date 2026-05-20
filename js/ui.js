@@ -113,28 +113,12 @@ export class UISystem {
         }
 
         // ==========================================================
-        // RIGHT-BOTTOM AREA: weapon info + level
+        // RIGHT-BOTTOM AREA: weapon level
         // ==========================================================
-        const weaponInfo = player.getWeaponInfo ? player.getWeaponInfo() : null;
-        if (weaponInfo) {
-            // Show current weapon type
-            const weaponNames = {
-                'normal': 'NORMAL',
-                'homing': 'HOMING',
-                'explosive': 'EXPLOSIVE'
-            };
-            const weaponName = weaponNames[weaponInfo.type] || 'UNKNOWN';
-            ctx.fillStyle = '#ff8844';
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText(`WEAPON: ${weaponName}`, GAME_WIDTH - 150, GAME_HEIGHT - 15);
-        } else {
-            // Fallback to weapon level display
-            ctx.fillStyle = '#ff8844';
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText(`WEAPON: LV${player.weaponLevel}`, GAME_WIDTH - 110, GAME_HEIGHT - 15);
-        }
+        ctx.fillStyle = '#ff8844';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`WEAPON: LV${player.weaponLevel}`, GAME_WIDTH - 110, GAME_HEIGHT - 15);
 
         // Level info (top-right of energy bar area)
         ctx.fillStyle = '#aaaaff';
@@ -192,10 +176,9 @@ export class UISystem {
             'WASD / Arrow Keys - Move',
             'Mouse / Touch - Move (hold click)',
             'SPACE - Bomb (clear screen)',
-            '1-4 - Switch Weapon',
             'P - Pause',
             '',
-            'Destroy enemies, collect power-ups!',
+            'Collect P power-ups to upgrade your weapon!',
             ''
         ];
         instructions.forEach((line, i) => {
