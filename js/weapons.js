@@ -198,6 +198,26 @@ export class WeaponSystem {
         // Always fire a homing missile (player bullet, not enemy bullet)
         // If no target, missile flies straight up and will find target later
         this.bullets.fireMissile(x, y - 10, nearest);
+
+        // Also fire baseline straight bullets so the player still has a
+        // continuous main fire stream alongside the homing missile.
+        // Level scales the side-bullet density.
+        const weapon = this.weapons.get(WEAPON_TYPES.HOMING);
+        const level = weapon ? weapon.level : 1;
+        if (this.bullets.firePlayerBullet) {
+            if (level >= 1) {
+                this.bullets.firePlayerBullet(x - 8, y - 10, 0, -10, 1);
+                this.bullets.firePlayerBullet(x + 8, y - 10, 0, -10, 1);
+            }
+            if (level >= 3) {
+                this.bullets.firePlayerBullet(x - 14, y - 6, -1.2, -9.5, 1);
+                this.bullets.firePlayerBullet(x + 14, y - 6, 1.2, -9.5, 1);
+            }
+            if (level >= 5) {
+                this.bullets.firePlayerBullet(x, y - 14, 0, -11, 1, 'normal', '#88ffcc');
+            }
+        }
+
         this.audio.playShoot();
     }
 
@@ -206,6 +226,24 @@ export class WeaponSystem {
         if (this.bullets && this.bullets.firePlayerBullet) {
             // Fire an explosive bullet (type='explosive')
             this.bullets.firePlayerBullet(x, y - 10, 0, -10, 3, 'explosive', '#ff8800');
+
+            // Also fire baseline straight bullets so the player keeps a
+            // steady main fire stream alongside the slow explosive shot.
+            const weapon = this.weapons.get(WEAPON_TYPES.EXPLOSIVE);
+            const level = weapon ? weapon.level : 1;
+            if (level >= 1) {
+                this.bullets.firePlayerBullet(x - 9, y - 6, 0, -10, 1);
+                this.bullets.firePlayerBullet(x + 9, y - 6, 0, -10, 1);
+            }
+            if (level >= 3) {
+                this.bullets.firePlayerBullet(x - 15, y - 4, -1.5, -9.5, 1);
+                this.bullets.firePlayerBullet(x + 15, y - 4, 1.5, -9.5, 1);
+            }
+            if (level >= 5) {
+                this.bullets.firePlayerBullet(x - 5, y - 14, -0.5, -11, 1, 'normal', '#ffcc88');
+                this.bullets.firePlayerBullet(x + 5, y - 14, 0.5, -11, 1, 'normal', '#ffcc88');
+            }
+
             this.audio.playShoot();
         }
     }
