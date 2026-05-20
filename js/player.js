@@ -259,6 +259,18 @@ export class Player {
             return;
         }
 
+        // Safety: ensure currentWeaponType and weaponSystem.currentWeapon are in sync
+        if (this.currentWeaponType !== this.weaponSystem.currentWeapon) {
+            // Trust weaponSystem as source of truth, sync player
+            this.currentWeaponType = this.weaponSystem.currentWeapon;
+        }
+
+        // Safety: if current weapon is invalid, fallback to NORMAL
+        if (!this.weaponSystem.weapons.has(this.currentWeaponType)) {
+            this.currentWeaponType = WEAPON_TYPES.NORMAL;
+            this.weaponSystem.currentWeapon = WEAPON_TYPES.NORMAL;
+        }
+
         const cx = this.x + this.width / 2;
         const cy = this.y;
 
@@ -371,7 +383,16 @@ export class Player {
                 this.respawning = true;
                 this.respawnTimer = 90;
                 this.shield = this.maxShield;
-                if (this.weaponLevel > 1) this.weaponLevel--;
+                if (this.weaponLevel > 1) {
+                    this.weaponLevel--;
+                    // Sync NORMAL weapon level in weaponSystem
+                    if (this.weaponSystem) {
+                        const normalWeapon = this.weaponSystem.weapons.get(WEAPON_TYPES.NORMAL);
+                        if (normalWeapon && normalWeapon.level > 1) {
+                            normalWeapon.level--;
+                        }
+                    }
+                }
             }
         }
     }

@@ -65,7 +65,9 @@ export class WeaponSystem {
             laserLength: 800,
             laserWidth: 4,
             energyCost: 2,
-            fireCooldown: 0
+            fireCooldown: 0,
+            level: 1,
+            maxLevel: 5
         });
 
         this.weapons.set(WEAPON_TYPES.HOMING, {
@@ -75,7 +77,9 @@ export class WeaponSystem {
             fireCooldown: 0,
             turnSpeed: 0.05,
             bulletSpeed: 5,
-            maxHoming: 3
+            maxHoming: 3,
+            level: 1,
+            maxLevel: 5
         });
 
         this.weapons.set(WEAPON_TYPES.EXPLOSIVE, {
@@ -84,7 +88,9 @@ export class WeaponSystem {
             explosionDamage: 2,
             fireRate: 20,
             fireCooldown: 0,
-            explosionRadius: 60
+            explosionRadius: 60,
+            level: 1,
+            maxLevel: 5
         });
     }
 
@@ -253,31 +259,28 @@ export class WeaponSystem {
     }
 
     _fireHoming(x, y, enemies) {
-        if (!enemies || enemies.length === 0) return;
+        if (!this.bullets || !this.bullets.fireMissile) return;
 
-        const weapon = this.weapons.get(WEAPON_TYPES.HOMING);
-
-        // Find nearest enemy
+        // Find nearest enemy (if any)
         let nearest = null;
-        let nearestDist = Infinity;
-
-        for (const enemy of enemies) {
-            if (!enemy.active) continue;
-            const dx = enemy.x + enemy.width / 2 - x;
-            const dy = enemy.y + enemy.height / 2 - y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < nearestDist) {
-                nearestDist = dist;
-                nearest = enemy;
+        if (enemies && enemies.length > 0) {
+            let nearestDist = Infinity;
+            for (const enemy of enemies) {
+                if (!enemy.active) continue;
+                const dx = enemy.x + enemy.width / 2 - x;
+                const dy = enemy.y + enemy.height / 2 - y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearest = enemy;
+                }
             }
         }
 
-        if (nearest && this.bullets.fireHomingBullet) {
-            // fireHomingBullet(x, y, speed, color, homingStrength)
-            // x is already center of player
-            this.bullets.fireHomingBullet(x, y - 10, 5, '#00ff00', 0.05);
-            this.audio.playShoot();
-        }
+        // Always fire a homing missile (player bullet, not enemy bullet)
+        // If no target, missile flies straight up and will find target later
+        this.bullets.fireMissile(x, y - 10, nearest);
+        this.audio.playShoot();
     }
 
     _fireExplosive(x, y) {
