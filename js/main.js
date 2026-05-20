@@ -16,8 +16,7 @@ import { UISystem } from './ui.js';
 import { ComboSystem } from './combo.js';
 import { FloatingTextSystem } from './floatingText.js';
 import { AchievementSystem } from './achievements.js';
-import { ChallengeMode, TimeAttackMode, SurvivalMode } from './challenge.js';
-import { WeaponSystem, WEAPON_TYPES } from './weapons.js';
+import { TimeAttackMode, SurvivalMode } from './challenge.js';
 
 class Game {
     constructor() {
@@ -305,6 +304,20 @@ class Game {
 
     _loop(timestamp) {
         const dt = Math.max(0, Math.min((timestamp - this.lastTime) / 1000, 0.05));
+
+        // ----------------------------------------------------------
+        // Throttle non-gameplay states to ~30 fps. The menu, pause,
+        // gameover and level-complete screens don't need 60 fps - this
+        // halves CPU/GPU work and is much friendlier on battery.
+        // ----------------------------------------------------------
+        const idleStates = this._idleStates || (this._idleStates = new Set([
+            'menu', 'paused', 'gameover', 'levelcomplete', 'challenge_select'
+        ]));
+        const targetInterval = idleStates.has(this.state) ? 1 / 30 : 0;
+        if (timestamp - this.lastTime < targetInterval * 1000) {
+            requestAnimationFrame((t) => this._loop(t));
+            return;
+        }
         this.lastTime = timestamp;
 
         // FPS counter

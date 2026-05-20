@@ -1,6 +1,6 @@
 // bullets.js - Bullet system for player and enemies (upgraded with boss bullet types)
 
-import { GAME_WIDTH, GAME_HEIGHT, ObjectPool, angleBetween, randRange } from './utils.js';
+import { GAME_WIDTH, GAME_HEIGHT, ObjectPool, angleBetween } from './utils.js';
 
 class Bullet {
     constructor() {

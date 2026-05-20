@@ -1,6 +1,6 @@
 // js/achievements.js - Achievement System (Complete - 13 achievements)
 
-import { GAME_WIDTH, GAME_HEIGHT } from './utils.js';
+import { GAME_WIDTH } from './utils.js';
 
 /**
  * Achievement definitions (13 achievements total)

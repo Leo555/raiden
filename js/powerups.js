@@ -1,6 +1,6 @@
 // powerups.js - Power-up / item system (Enhanced with duration-based power-ups)
 
-import { GAME_WIDTH, GAME_HEIGHT, randRange } from './utils.js';
+import { GAME_HEIGHT } from './utils.js';
 
 export const POWERUP_TYPES = {
     POWER: 'P',      // Weapon power-up (instant)

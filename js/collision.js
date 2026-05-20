@@ -1,6 +1,6 @@
 // collision.js - Collision detection system (Enhanced with Combo & Graze)
 
-import { circleCollision, rectCollision, distance, GAME_WIDTH, GAME_HEIGHT } from './utils.js';
+import { rectCollision, distance, GAME_WIDTH, GAME_HEIGHT } from './utils.js';
 import { SuicideEnemy } from './enemies.js';
 
 export class CollisionSystem {

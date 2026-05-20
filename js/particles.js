@@ -32,9 +32,17 @@ export class ParticleSystem {
             (p) => p.reset(),
             200
         );
+        // Hard cap to keep the draw loop fast even during nuke/big-explosion
+        // bursts. Beyond this we silently drop the request - perceived
+        // visual quality stays the same because the screen is already full.
+        this.maxParticles = 600;
     }
 
     emit(x, y, count, options = {}) {
+        // Throttle: never let the live particle count blow past the cap.
+        const room = this.maxParticles - this.particles.length;
+        if (room <= 0) return;
+        if (count > room) count = room;
         for (let i = 0; i < count; i++) {
             const p = this.pool.get();
             p.x = x + (options.spreadX || 0) * (Math.random() - 0.5);
