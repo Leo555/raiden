@@ -80,7 +80,7 @@ const LEVEL_CONFIGS = [
                 { type: ENEMY_TYPES.SMALL, count: 10, pattern: 'straight', spacing: 10, startX: 250 }
             ]},
         ],
-        bossType: 2,
+        bossType: 4,
         bossTime: 1100
     },
     // Level 4: Hard
@@ -109,7 +109,7 @@ const LEVEL_CONFIGS = [
                 { type: ENEMY_TYPES.ELITE, count: 1, pattern: 'sine', spacing: 0, startX: 240 }
             ]},
         ],
-        bossType: 2,
+        bossType: 5,
         bossTime: 1000
     },
     // Level 5: Final
@@ -142,7 +142,7 @@ const LEVEL_CONFIGS = [
                 { type: ENEMY_TYPES.MEDIUM, count: 8, pattern: 'dive', spacing: 15, startX: 150 }
             ]},
         ],
-        bossType: 3,
+        bossType: 6,
         bossTime: 1100
     }
 ];
@@ -274,7 +274,7 @@ export class LevelManager {
 
         // Spawn boss periodically in endless
         if (this.levelTimer > 1500 && !this.boss.active && Math.random() < 0.001) {
-            const bossType = randInt(1, 3);
+            const bossType = randInt(1, 6);
             this.boss.spawn(bossType, this.endlessDifficulty);
             this.state = 'boss';
         }

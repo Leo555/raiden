@@ -199,7 +199,7 @@ export class UISystem {
         });
 
         // Start button
-        const btnY = 480;
+        const btnY = GAME_HEIGHT - 480;
         ctx.fillStyle = '#2266cc';
         drawRoundedRect(ctx, GAME_WIDTH / 2 - 80, btnY, 160, 40, 8);
         ctx.fill();
@@ -349,11 +349,18 @@ export class UISystem {
     }
 
     isStartButtonClicked(x, y) {
-        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= 480 && y <= 520;
+        const btnY = GAME_HEIGHT - 480;
+        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 40;
+    }
+
+    isChallengeButtonClicked(x, y) {
+        const btnY = GAME_HEIGHT - 480 + 55;
+        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 40;
     }
 
     isEndlessButtonClicked(x, y) {
-        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= 535 && y <= 570;
+        const btnY = GAME_HEIGHT - 480 + 110;
+        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 35;
     }
 
     isRestartButtonClicked(x, y) {
@@ -364,11 +371,6 @@ export class UISystem {
     isMenuButtonClicked(x, y) {
         const btnY = GAME_HEIGHT / 2 + 105;
         return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 35;
-    }
-
-    isChallengeButtonClicked(x, y) {
-        const btnY = 535;
-        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 40;
     }
 
     isTimeAttackButtonClicked(x, y) {

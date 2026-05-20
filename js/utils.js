@@ -1,7 +1,7 @@
 // utils.js - Utility functions and constants
 
-export const GAME_WIDTH = 480;
-export const GAME_HEIGHT = 720;
+export const GAME_WIDTH = 540;
+export const GAME_HEIGHT = 960;
 
 export function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));

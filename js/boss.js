@@ -105,6 +105,33 @@ export class Boss {
                 this.speed = 2;
                 this.color = '#9900ff';
                 break;
+            case 4: // FROST TYRANT - ice themed, slow controller
+                this.width = 100;
+                this.height = 75;
+                this.hp = 160 + level * 30;
+                this.maxHp = this.hp;
+                this.speed = 1.2;
+                this.color = '#88ddff';
+                break;
+            case 5: // LIGHTNING SOVEREIGN - high speed, teleporting
+                this.width = 70;
+                this.height = 60;
+                this.hp = 140 + level * 28;
+                this.maxHp = this.hp;
+                this.speed = 3.5;
+                this.color = '#ffee44';
+                this.teleportTimer = 0;
+                this.teleportFlash = 0;
+                break;
+            case 6: // NEXUS COLOSSUS - mecha titan, drones
+                this.width = 130;
+                this.height = 90;
+                this.hp = 220 + level * 40;
+                this.maxHp = this.hp;
+                this.speed = 1.5;
+                this.color = '#cccccc';
+                this.summonTimer = 120;
+                break;
         }
 
         this.audio.playBossAlert();
@@ -247,6 +274,35 @@ export class Boss {
                     this.targetY = 35 + randRange(0, 40);
                 }
                 break;
+            case 4: // FROST TYRANT - very slow horizontal sliding
+                if (this.moveTimer > 140 - this.phase * 25) {
+                    this.moveTimer = 0;
+                    this.targetX = randRange(40, GAME_WIDTH - this.width - 40);
+                    this.targetY = 50 + randRange(0, 20);
+                }
+                break;
+            case 5: // LIGHTNING SOVEREIGN - teleports between positions
+                this.teleportTimer = (this.teleportTimer || 0) + dt * 60;
+                if (this.teleportFlash > 0) this.teleportFlash -= dt * 60;
+                if (this.teleportTimer > 90 - this.phase * 15) {
+                    this.teleportTimer = 0;
+                    this.teleportFlash = 12;
+                    // Teleport to new location
+                    this.particles.explode(this.x + this.width / 2, this.y + this.height / 2, 1.5);
+                    this.x = randRange(20, GAME_WIDTH - this.width - 20);
+                    this.y = 40 + randRange(0, 60);
+                    this.targetX = this.x;
+                    this.targetY = this.y;
+                    this.particles.explode(this.x + this.width / 2, this.y + this.height / 2, 1.5);
+                }
+                break;
+            case 6: // NEXUS COLOSSUS - heavy slow drift
+                if (this.moveTimer > 160 - this.phase * 25) {
+                    this.moveTimer = 0;
+                    this.targetX = randRange(20, GAME_WIDTH - this.width - 20);
+                    this.targetY = 40 + randRange(0, 30);
+                }
+                break;
         }
 
         const moveDir = this.targetX - this.x;
@@ -298,6 +354,9 @@ export class Boss {
             case 1: this._attackBoss1(cx, cy, playerX, playerY); break;
             case 2: this._attackBoss2(cx, cy, playerX, playerY, enemySystem); break;
             case 3: this._attackBoss3(cx, cy, playerX, playerY); break;
+            case 4: this._attackBoss4(cx, cy, playerX, playerY); break;
+            case 5: this._attackBoss5(cx, cy, playerX, playerY); break;
+            case 6: this._attackBoss6(cx, cy, playerX, playerY, enemySystem); break;
         }
     }
 
@@ -328,6 +387,33 @@ export class Boss {
                     this.bullets.fireHomingBullet(
                         cx + Math.cos(a) * 30, cy + Math.sin(a) * 30,
                         2.5, '#cc44ff', 0.025);
+                }
+                break;
+            case 4:
+                // FROST: Slow expanding ice ring (large radius, many bullets)
+                for (let i = 0; i < 20; i++) {
+                    const a = (i / 20) * Math.PI * 2;
+                    this.bullets.fireRingBullet(cx, cy, a, 1.5, '#aaeeff', 0.02);
+                }
+                break;
+            case 5:
+                // LIGHTNING: Chain beams in 8 directions
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2 + this.timer * 0.03;
+                    this.bullets.fireBeamBullet(cx, cy,
+                        Math.cos(a) * 4.5, Math.sin(a) * 4.5, '#ffff44', 30);
+                }
+                break;
+            case 6:
+                // COLOSSUS: Massive aimed split bombardment
+                const aim = angleBetween(cx, cy, playerX, playerY);
+                for (let i = -2; i <= 2; i++) {
+                    this.bullets.fireSplitBullet(
+                        cx + i * 25, cy,
+                        Math.cos(aim + i * 0.05) * 1.5,
+                        Math.sin(aim + i * 0.05) * 1.5,
+                        '#ffaa00', 6, 40
+                    );
                 }
                 break;
         }
@@ -553,6 +639,256 @@ export class Boss {
         }
     }
 
+    _attackBoss4(cx, cy, px, py) {
+        // FROST TYRANT - control-themed boss with slow but tricky bullets
+        switch (this.attackPattern) {
+            case 0: { // Frost cone - aimed slow wide spread
+                const angle = angleBetween(cx, cy, px, py);
+                for (let i = -3; i <= 3; i++) {
+                    this.bullets.fireWaveBullet(cx, cy,
+                        Math.cos(angle + i * 0.18) * 2,
+                        Math.sin(angle + i * 0.18) * 2,
+                        '#aaddff', 18, 0.08);
+                }
+                break;
+            }
+            case 1: { // Ice shards - ring of beam bullets
+                for (let i = 0; i < 10; i++) {
+                    const a = (i / 10) * Math.PI * 2 + this.timer * 0.015;
+                    this.bullets.fireBeamBullet(cx, cy,
+                        Math.cos(a) * 2.5, Math.sin(a) * 2.5, '#88ddff', 22);
+                }
+                break;
+            }
+            case 2: { // Slow-motion ring (very slow bullets that hang in air)
+                for (let i = 0; i < 16; i++) {
+                    const a = (i / 16) * Math.PI * 2;
+                    this.bullets.fireAccelBullet(cx, cy,
+                        Math.cos(a) * 0.8, Math.sin(a) * 0.8, '#ccffff', 0.02);
+                }
+                break;
+            }
+            case 3: { // Crystal cross - 4 directional split bullets
+                for (let i = 0; i < 4; i++) {
+                    const a = (i / 4) * Math.PI * 2;
+                    this.bullets.fireSplitBullet(cx, cy,
+                        Math.cos(a) * 2.2, Math.sin(a) * 2.2,
+                        '#aaccff', 5, 40);
+                }
+                break;
+            }
+            case 4: { // Glacial bombardment (Phase 1+)
+                if (this.phase >= 1) {
+                    for (let i = -2; i <= 2; i++) {
+                        const sx = cx + i * 35;
+                        this.bullets.fireSplitBullet(sx, cy,
+                            i * 0.3, 1.8, '#88ccff', 4, 30);
+                    }
+                }
+                break;
+            }
+            case 5: { // Frost spiral
+                this.spiralOffset += 0.18;
+                for (let i = 0; i < 6; i++) {
+                    const a = (i / 6) * Math.PI * 2 + this.spiralOffset;
+                    this.bullets.firePetalBullet(cx, cy, a, 2, '#aaeeff', 0.05);
+                }
+                break;
+            }
+            case 6: { // Blizzard storm (Phase 2)
+                if (this.phase >= 2) {
+                    for (let i = 0; i < 14; i++) {
+                        const a = (i / 14) * Math.PI * 2 + this.timer * 0.04;
+                        this.bullets.fireWaveBullet(cx, cy,
+                            Math.cos(a) * 1.8, Math.sin(a) * 1.8,
+                            '#ffffff', 28, 0.13);
+                    }
+                    // Secondary aimed split shot
+                    const aimed = angleBetween(cx, cy, px, py);
+                    this.bullets.fireSplitBullet(cx, cy,
+                        Math.cos(aimed) * 2, Math.sin(aimed) * 2,
+                        '#ddffff', 6, 35);
+                }
+                break;
+            }
+        }
+    }
+
+    _attackBoss5(cx, cy, px, py) {
+        // LIGHTNING SOVEREIGN - high-speed, chain attacks
+        switch (this.attackPattern) {
+            case 0: { // Chain lightning - aimed beam triple
+                const angle = angleBetween(cx, cy, px, py);
+                for (let i = -1; i <= 1; i++) {
+                    this.bullets.fireBeamBullet(cx, cy,
+                        Math.cos(angle + i * 0.1) * 6,
+                        Math.sin(angle + i * 0.1) * 6,
+                        '#ffff44', 28);
+                }
+                break;
+            }
+            case 1: { // Lightning fork - aimed accel spread
+                const angle = angleBetween(cx, cy, px, py);
+                for (let i = -2; i <= 2; i++) {
+                    this.bullets.fireAccelBullet(cx, cy,
+                        Math.cos(angle + i * 0.12) * 1.5,
+                        Math.sin(angle + i * 0.12) * 1.5,
+                        '#ffee88', 0.08);
+                }
+                break;
+            }
+            case 2: { // Star burst - 8-way beam
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2 + this.timer * 0.04;
+                    this.bullets.fireBeamBullet(cx, cy,
+                        Math.cos(a) * 4, Math.sin(a) * 4, '#ffff66', 22);
+                }
+                break;
+            }
+            case 3: { // Thunder rain (Phase 1+)
+                if (this.phase >= 1) {
+                    for (let i = 0; i < 6; i++) {
+                        const sx = randRange(cx - 80, cx + 80);
+                        this.bullets.fireBeamBullet(sx, cy,
+                            randRange(-0.5, 0.5), 4, '#ffffaa', 30);
+                    }
+                }
+                break;
+            }
+            case 4: { // Spiral lightning
+                this.spiralOffset += 0.4;
+                for (let i = 0; i < 5; i++) {
+                    const a = (i / 5) * Math.PI * 2 + this.spiralOffset;
+                    this.bullets.fireAccelBullet(cx, cy,
+                        Math.cos(a) * 2, Math.sin(a) * 2, '#ffff66', 0.06);
+                }
+                break;
+            }
+            case 5: { // Homing sparks
+                if (this.phase >= 1) {
+                    for (let i = 0; i < 4; i++) {
+                        const a = (i / 4) * Math.PI * 2;
+                        this.bullets.fireHomingBullet(
+                            cx + Math.cos(a) * 20, cy + Math.sin(a) * 20,
+                            3, '#ffff88', 0.04);
+                    }
+                }
+                break;
+            }
+            case 6: { // Tempest (Phase 2)
+                if (this.phase >= 2) {
+                    // Outer fast ring
+                    for (let i = 0; i < 18; i++) {
+                        const a = (i / 18) * Math.PI * 2;
+                        this.bullets.fireBeamBullet(cx, cy,
+                            Math.cos(a) * 3.5, Math.sin(a) * 3.5, '#ffff44', 20);
+                    }
+                    // Aimed lightning bolts
+                    const aimed = angleBetween(cx, cy, px, py);
+                    for (let i = -1; i <= 1; i++) {
+                        this.bullets.fireBeamBullet(cx, cy,
+                            Math.cos(aimed + i * 0.08) * 7,
+                            Math.sin(aimed + i * 0.08) * 7,
+                            '#ffffff', 35);
+                    }
+                    this.shakeAmount = 4;
+                }
+                break;
+            }
+        }
+    }
+
+    _attackBoss6(cx, cy, px, py, enemySystem) {
+        // NEXUS COLOSSUS - mecha titan, summons drones
+        switch (this.attackPattern) {
+            case 0: { // Twin cannon barrage
+                for (let i = -2; i <= 2; i++) {
+                    const angle = Math.PI / 2 + i * 0.12;
+                    this.bullets.fireEnemyBullet(cx - 35, cy,
+                        Math.cos(angle) * 3, Math.sin(angle) * 3, 'enemy', '#ffaa00');
+                    this.bullets.fireEnemyBullet(cx + 35, cy,
+                        Math.cos(angle) * 3, Math.sin(angle) * 3, 'enemy', '#ffaa00');
+                }
+                break;
+            }
+            case 1: { // Aimed laser cross
+                const angle = angleBetween(cx, cy, px, py);
+                for (let i = -1; i <= 1; i++) {
+                    this.bullets.fireBeamBullet(cx, cy,
+                        Math.cos(angle + i * 0.2) * 4,
+                        Math.sin(angle + i * 0.2) * 4,
+                        '#ff8800', 30);
+                }
+                break;
+            }
+            case 2: { // Drone deployment
+                if (enemySystem) {
+                    this.summonTimer -= 60;
+                    if (this.summonTimer <= 0) {
+                        enemySystem.spawnEnemy('small', cx - 40, cy, 'dive');
+                        enemySystem.spawnEnemy('small', cx + 40, cy, 'dive');
+                        if (this.phase >= 1) {
+                            enemySystem.spawnEnemy('small', cx, cy, 'strafe');
+                        }
+                        this.summonTimer = 130 - this.phase * 25;
+                    }
+                }
+                // Suppression fire
+                for (let i = -3; i <= 3; i++) {
+                    this.bullets.fireEnemyBullet(cx, cy,
+                        i * 0.6, 2.5, 'enemy', '#dddddd');
+                }
+                break;
+            }
+            case 3: { // Heavy artillery (split bombs)
+                for (let i = -1; i <= 1; i++) {
+                    this.bullets.fireSplitBullet(cx + i * 40, cy,
+                        i * 0.4, 2, '#ff6600', 5, 35);
+                }
+                break;
+            }
+            case 4: { // Flak shield - 360 ring
+                for (let i = 0; i < 14; i++) {
+                    const a = (i / 14) * Math.PI * 2 + this.timer * 0.02;
+                    this.bullets.fireEnemyBullet(cx, cy,
+                        Math.cos(a) * 2.2, Math.sin(a) * 2.2, 'enemy', '#cccccc');
+                }
+                break;
+            }
+            case 5: { // Missile salvo (Phase 1+)
+                if (this.phase >= 1) {
+                    for (let i = 0; i < 4; i++) {
+                        const a = (i / 4) * Math.PI * 2;
+                        this.bullets.fireHomingBullet(
+                            cx + Math.cos(a) * 25, cy + Math.sin(a) * 25,
+                            2, '#ffaa44', 0.03);
+                    }
+                }
+                break;
+            }
+            case 6: { // ANNIHILATION (Phase 2)
+                if (this.phase >= 2) {
+                    // Wave of accel bullets
+                    for (let i = 0; i < 20; i++) {
+                        const a = (i / 20) * Math.PI * 2;
+                        this.bullets.fireAccelBullet(cx, cy,
+                            Math.cos(a) * 1.2, Math.sin(a) * 1.2, '#ff4400', 0.05);
+                    }
+                    // Aimed beam barrage
+                    const aimed = angleBetween(cx, cy, px, py);
+                    for (let i = -2; i <= 2; i++) {
+                        this.bullets.fireBeamBullet(cx, cy,
+                            Math.cos(aimed + i * 0.1) * 4.5,
+                            Math.sin(aimed + i * 0.1) * 4.5,
+                            '#ff8800', 32);
+                    }
+                    this.shakeAmount = 6;
+                }
+                break;
+            }
+        }
+    }
+
     damage(amount) {
         if (!this.active || this.entering || this.defeated) return false;
         this.hp -= amount;
@@ -606,6 +942,9 @@ export class Boss {
             case 1: this._drawBoss1(ctx, cx, cy, baseColor); break;
             case 2: this._drawBoss2(ctx, cx, cy, baseColor); break;
             case 3: this._drawBoss3(ctx, cx, cy, baseColor); break;
+            case 4: this._drawBoss4(ctx, cx, cy, baseColor); break;
+            case 5: this._drawBoss5(ctx, cx, cy, baseColor); break;
+            case 6: this._drawBoss6(ctx, cx, cy, baseColor); break;
         }
 
         // Phase glow effect
@@ -626,7 +965,10 @@ export class Boss {
         const auraColors = {
             1: 'rgba(255, 60, 0, 0.15)',
             2: 'rgba(0, 200, 255, 0.12)',
-            3: 'rgba(150, 0, 255, 0.18)'
+            3: 'rgba(150, 0, 255, 0.18)',
+            4: 'rgba(150, 220, 255, 0.18)',
+            5: 'rgba(255, 240, 80, 0.18)',
+            6: 'rgba(220, 220, 220, 0.15)'
         };
 
         ctx.save();
@@ -1047,6 +1389,293 @@ export class Boss {
         ctx.restore();
     }
 
+    _drawBoss4(ctx, cx, cy, color) {
+        // FROST TYRANT - crystalline ice fortress
+        ctx.save();
+
+        // Frost mist beneath
+        ctx.fillStyle = 'rgba(180, 230, 255, 0.25)';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#88ddff';
+        ctx.beginPath();
+        ctx.ellipse(cx, this.y + this.height + 10, this.width * 0.6,
+            8 + this.enginePulse * 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hexagonal main body (ice crystal shape)
+        ctx.fillStyle = color;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#aaeeff';
+        ctx.beginPath();
+        ctx.moveTo(cx, this.y - 8);
+        ctx.lineTo(this.x + this.width, this.y + this.height * 0.3);
+        ctx.lineTo(this.x + this.width, this.y + this.height * 0.7);
+        ctx.lineTo(cx, this.y + this.height + 8);
+        ctx.lineTo(this.x, this.y + this.height * 0.7);
+        ctx.lineTo(this.x, this.y + this.height * 0.3);
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner crystal facets (lighter shade)
+        ctx.fillStyle = this.flashTimer > 0 ? '#ffffff' : '#ddf2ff';
+        ctx.beginPath();
+        ctx.moveTo(cx, this.y + 5);
+        ctx.lineTo(this.x + this.width - 12, this.y + this.height * 0.5);
+        ctx.lineTo(cx, this.y + this.height - 5);
+        ctx.lineTo(this.x + 12, this.y + this.height * 0.5);
+        ctx.closePath();
+        ctx.fill();
+
+        // Side ice spikes
+        ctx.fillStyle = '#bbe5ff';
+        ctx.beginPath();
+        ctx.moveTo(this.x - 8, cy);
+        ctx.lineTo(this.x - 22, cy - 6);
+        ctx.lineTo(this.x - 22, cy + 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(this.x + this.width + 8, cy);
+        ctx.lineTo(this.x + this.width + 22, cy - 6);
+        ctx.lineTo(this.x + this.width + 22, cy + 6);
+        ctx.closePath();
+        ctx.fill();
+
+        // Frost cracks/details
+        ctx.strokeStyle = '#ffffff';
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 3; i++) {
+            const ang = (i / 3) * Math.PI * 2 + this.timer * 0.01;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(ang) * 18, cy + Math.sin(ang) * 14);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        // Central frozen core
+        const corePulse = 7 + Math.sin(this.timer * 0.1) * 2;
+        ctx.fillStyle = '#88ddff';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#aaffff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, corePulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(cx, cy, corePulse * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    _drawBoss5(ctx, cx, cy, color) {
+        // LIGHTNING SOVEREIGN - electric energy entity
+        ctx.save();
+
+        // Teleport flash effect
+        if (this.teleportFlash > 0) {
+            const flashAlpha = this.teleportFlash / 12;
+            ctx.fillStyle = `rgba(255, 255, 200, ${flashAlpha * 0.6})`;
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ffffaa';
+            ctx.beginPath();
+            ctx.arc(cx, cy, this.width * (1 - flashAlpha) + 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Electric arcs around boss
+        ctx.strokeStyle = '#ffff66';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#ffff99';
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.7;
+        for (let i = 0; i < 5; i++) {
+            const a = this.auraAngle + (i / 5) * Math.PI * 2;
+            const r1 = this.width * 0.45;
+            const r2 = this.width * 0.65 + Math.sin(this.timer * 0.2 + i) * 5;
+            const x1 = cx + Math.cos(a) * r1;
+            const y1 = cy + Math.sin(a) * r1;
+            const x2 = cx + Math.cos(a) * r2;
+            const y2 = cy + Math.sin(a) * r2;
+            const midX = (x1 + x2) / 2 + randRange(-6, 6);
+            const midY = (y1 + y2) / 2 + randRange(-6, 6);
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(midX, midY);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        // Diamond-shaped body
+        ctx.fillStyle = color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ffff66';
+        ctx.beginPath();
+        ctx.moveTo(cx, this.y - 5);
+        ctx.lineTo(this.x + this.width + 5, cy);
+        ctx.lineTo(cx, this.y + this.height + 5);
+        ctx.lineTo(this.x - 5, cy);
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner diamond
+        ctx.fillStyle = this.flashTimer > 0 ? '#ffffff' : '#ffffaa';
+        ctx.beginPath();
+        ctx.moveTo(cx, this.y + 8);
+        ctx.lineTo(this.x + this.width - 8, cy);
+        ctx.lineTo(cx, this.y + this.height - 8);
+        ctx.lineTo(this.x + 8, cy);
+        ctx.closePath();
+        ctx.fill();
+
+        // Wing prongs
+        ctx.strokeStyle = '#ffee44';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(this.x + 5, cy - 8);
+        ctx.lineTo(this.x - 12, cy - 14);
+        ctx.moveTo(this.x + 5, cy + 8);
+        ctx.lineTo(this.x - 12, cy + 14);
+        ctx.moveTo(this.x + this.width - 5, cy - 8);
+        ctx.lineTo(this.x + this.width + 12, cy - 14);
+        ctx.moveTo(this.x + this.width - 5, cy + 8);
+        ctx.lineTo(this.x + this.width + 12, cy + 14);
+        ctx.stroke();
+
+        // Central plasma core
+        const corePulse = 8 + Math.sin(this.timer * 0.18) * 3;
+        ctx.fillStyle = '#ffff44';
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, corePulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(cx, cy, corePulse * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    _drawBoss6(ctx, cx, cy, color) {
+        // NEXUS COLOSSUS - massive mecha titan
+        ctx.save();
+
+        // Heavy thrusters
+        const thrustSize = 12 + this.enginePulse * 6;
+        ctx.fillStyle = '#ff6622';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#ff8844';
+        ctx.beginPath();
+        ctx.arc(cx - 30, this.y + this.height + 5, thrustSize * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 30, this.y + this.height + 5, thrustSize * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffaa44';
+        ctx.beginPath();
+        ctx.arc(cx - 30, this.y + this.height + 5, thrustSize * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 30, this.y + this.height + 5, thrustSize * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Massive armored hull (wider rectangle with chamfered edges)
+        ctx.fillStyle = color;
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = '#888888';
+        ctx.beginPath();
+        ctx.moveTo(this.x + 15, this.y);
+        ctx.lineTo(this.x + this.width - 15, this.y);
+        ctx.lineTo(this.x + this.width, this.y + 15);
+        ctx.lineTo(this.x + this.width, this.y + this.height - 15);
+        ctx.lineTo(this.x + this.width - 15, this.y + this.height);
+        ctx.lineTo(this.x + 15, this.y + this.height);
+        ctx.lineTo(this.x, this.y + this.height - 15);
+        ctx.lineTo(this.x, this.y + 15);
+        ctx.closePath();
+        ctx.fill();
+
+        // Heavy armor plating (darker layer)
+        ctx.fillStyle = this.flashTimer > 0 ? '#ffffff' : '#666666';
+        ctx.fillRect(this.x + 12, this.y + 10, this.width - 24, 14);
+        ctx.fillRect(this.x + 12, this.y + this.height - 24, this.width - 24, 14);
+        ctx.fillRect(this.x + 18, this.y + 30, this.width - 36, 10);
+
+        // Twin shoulder cannons (huge!)
+        ctx.fillStyle = '#444444';
+        ctx.fillRect(this.x - 20, this.y + 18, 22, 26);
+        ctx.fillRect(this.x + this.width - 2, this.y + 18, 22, 26);
+
+        // Cannon barrels
+        ctx.fillStyle = '#222222';
+        ctx.fillRect(this.x - 25, this.y + 24, 8, 14);
+        ctx.fillRect(this.x + this.width + 17, this.y + 24, 8, 14);
+
+        // Cannon glow
+        ctx.fillStyle = '#ff8800';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ff8800';
+        ctx.beginPath();
+        ctx.arc(this.x - 21, this.y + 31, 4 + this.enginePulse * 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(this.x + this.width + 21, this.y + 31, 4 + this.enginePulse * 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Top antenna/sensor array
+        ctx.fillStyle = '#aaaaaa';
+        ctx.fillRect(cx - 3, this.y - 12, 6, 12);
+        ctx.fillStyle = '#ff4444';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#ff4444';
+        ctx.beginPath();
+        ctx.arc(cx, this.y - 13, 3 + Math.sin(this.timer * 0.2) * 1, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Central energy core (large hexagon)
+        const corePulse = 10 + Math.sin(this.timer * 0.1) * 3;
+        ctx.fillStyle = '#ffaa00';
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#ffaa00';
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            const px = cx + Math.cos(a) * corePulse;
+            const py = cy + Math.sin(a) * corePulse;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner core
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(cx, cy, corePulse * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Phase indicators - red lights when enraged
+        if (this.phase >= 1) {
+            ctx.fillStyle = '#ff2222';
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = '#ff2222';
+            for (let i = -1; i <= 1; i += 2) {
+                ctx.beginPath();
+                ctx.arc(cx + i * 18, this.y + 15, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        ctx.restore();
+    }
+
     drawHPBar(ctx) {
         if (!this.active || this.entering) return;
 
@@ -1078,6 +1707,21 @@ export class Boss {
                 gradient.addColorStop(0.5, '#9900ff');
                 gradient.addColorStop(1, '#ff44ff');
                 break;
+            case 4:
+                gradient.addColorStop(0, '#3388cc');
+                gradient.addColorStop(0.5, '#88ddff');
+                gradient.addColorStop(1, '#ddffff');
+                break;
+            case 5:
+                gradient.addColorStop(0, '#cc8800');
+                gradient.addColorStop(0.5, '#ffee44');
+                gradient.addColorStop(1, '#ffffaa');
+                break;
+            case 6:
+                gradient.addColorStop(0, '#666666');
+                gradient.addColorStop(0.5, '#aaaaaa');
+                gradient.addColorStop(1, '#ffaa44');
+                break;
         }
         ctx.fillStyle = gradient;
         ctx.fillRect(x, y, barWidth * hpRatio, barHeight);
@@ -1103,7 +1747,14 @@ export class Boss {
         ctx.font = 'bold 10px monospace';
         ctx.textAlign = 'center';
         // Use plain ASCII markers instead of emojis to avoid color-emoji rendering artifacts on canvas
-        const names = ['', '[!] INFERNO GUARDIAN', '[~] PHANTOM STRIKER', '[X] VOID OVERLORD'];
+        const names = ['',
+            '[!] INFERNO GUARDIAN',
+            '[~] PHANTOM STRIKER',
+            '[X] VOID OVERLORD',
+            '[*] FROST TYRANT',
+            '[#] LIGHTNING SOVEREIGN',
+            '[=] NEXUS COLOSSUS'
+        ];
         ctx.fillText(names[this.bossType], GAME_WIDTH / 2, y - 4);
         ctx.textAlign = 'left';
 
