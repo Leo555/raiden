@@ -278,46 +278,45 @@ export class AudioManager {
 
     /**
      * Boss small explosion (used during the boss's defeat death-throes animation).
-     * Heavy thump + brief noise crackle. Designed to chain together without
-     * sounding like bubble pops.
+     * Punchy mid-range explosion with bright debris crackle. NOT bass-heavy —
+     * we want it to sound like a sharp arcade-style "POW" rather than a deep boom.
      */
     playBossSmallExplosion() {
         if (!this.enabled || !this.ctx) return;
         const ctx = this.ctx;
         const t = ctx.currentTime;
 
-        // ---- Sub-bass thump (sine punch from 90Hz to 30Hz) ----
-        const thump = ctx.createOscillator();
-        const thumpGain = ctx.createGain();
-        thump.type = 'sine';
-        thump.frequency.setValueAtTime(90, t);
-        thump.frequency.exponentialRampToValueAtTime(30, t + 0.25);
-        thumpGain.gain.setValueAtTime(0.55, t);
-        thumpGain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-        thump.connect(thumpGain);
-        thumpGain.connect(this.sfxGain);
-        thump.start(t);
-        thump.stop(t + 0.4);
+        // ---- Mid-range punch (sine 200Hz → 60Hz) ----
+        // Less bass-heavy than a sub-thump, sits in the mid range
+        const punch = ctx.createOscillator();
+        const punchGain = ctx.createGain();
+        punch.type = 'sine';
+        punch.frequency.setValueAtTime(200, t);
+        punch.frequency.exponentialRampToValueAtTime(60, t + 0.18);
+        punchGain.gain.setValueAtTime(0.32, t);
+        punchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        punch.connect(punchGain);
+        punchGain.connect(this.sfxGain);
+        punch.start(t);
+        punch.stop(t + 0.28);
 
-        // ---- Crackling debris noise (mid-high freq, short) ----
-        const noiseDur = 0.3;
+        // ---- Bright crackling debris (highpass-filtered noise) ----
+        const noiseDur = 0.25;
         const bufSize = Math.floor(ctx.sampleRate * noiseDur);
         const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
         const data = buf.getChannelData(0);
         for (let i = 0; i < bufSize; i++) {
-            const env = Math.pow(1 - i / bufSize, 2.5);
+            const env = Math.pow(1 - i / bufSize, 2);
             data[i] = (Math.random() * 2 - 1) * env;
         }
         const nSrc = ctx.createBufferSource();
         nSrc.buffer = buf;
         const nGain = ctx.createGain();
-        nGain.gain.setValueAtTime(0.18, t);
+        nGain.gain.setValueAtTime(0.22, t);
         nGain.gain.exponentialRampToValueAtTime(0.001, t + noiseDur);
         const nFilter = ctx.createBiquadFilter();
-        nFilter.type = 'bandpass';
-        nFilter.frequency.setValueAtTime(1200, t);
-        nFilter.frequency.exponentialRampToValueAtTime(300, t + noiseDur);
-        nFilter.Q.value = 1.5;
+        nFilter.type = 'highpass';
+        nFilter.frequency.value = 1500;
         nSrc.connect(nFilter);
         nFilter.connect(nGain);
         nGain.connect(this.sfxGain);
@@ -325,15 +324,20 @@ export class AudioManager {
     }
 
     /**
-     * Boss final defeat sound: cinematic, designed to feel like a massive
-     * destruction event followed by a clean victory chord.
+     * Boss final defeat sound: BRIGHT, triumphant, arcade-style victory.
      *
-     * Timeline (~3.5s total):
-     *   0.00 - 0.10  Sharp ZAP (white-flash impact)
-     *   0.00 - 0.40  Massive sub-bass thump (the "boom")
-     *   0.10 - 1.50  Long rumbling explosion (debris + rumble)
-     *   0.30 - 1.20  Distorted descending death roar
-     *   1.50 - 3.50  Clean major-key victory fanfare (brass-like)
+     * Design principles:
+     *  - Most energy in mid/high range so it cuts through the music
+     *  - Short, punchy explosion (not long bassy rumble)
+     *  - Quick dramatic riser into the victory fanfare
+     *  - Bright, clearly-pitched victory chord (the hero of the sound)
+     *
+     * Timeline (~2.8s total):
+     *   0.00 - 0.20  Sharp ZAP (descending square sweep)
+     *   0.00 - 0.40  Punchy mid-frequency explosion (no deep sub)
+     *   0.10 - 0.60  Bright shrapnel sparkles
+     *   0.40 - 0.80  Ascending riser (build-up)
+     *   0.80 - 2.80  Triumphant brass+bell victory fanfare (C major)
      */
     playBossDefeat() {
         if (!this.enabled || !this.ctx) return;
@@ -341,167 +345,195 @@ export class AudioManager {
         const t = ctx.currentTime;
 
         // =========================================================
-        // PHASE 1: IMPACT (0.0s)
+        // PHASE 1: IMPACT (0.0s - 0.4s) - bright, punchy
         // =========================================================
 
-        // ---- Layer A: Sharp ZAP (the bright white flash sound) ----
-        // Square osc swept down from 4kHz to 200Hz in 0.1s
+        // ---- Layer A: Sharp ZAP (square sweep 4kHz → 400Hz) ----
         {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'square';
             osc.frequency.setValueAtTime(4000, t);
-            osc.frequency.exponentialRampToValueAtTime(200, t + 0.1);
+            osc.frequency.exponentialRampToValueAtTime(400, t + 0.18);
             gain.gain.setValueAtTime(0.18, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
             osc.connect(gain);
             gain.connect(this.sfxGain);
             osc.start(t);
-            osc.stop(t + 0.13);
+            osc.stop(t + 0.22);
         }
 
-        // ---- Layer B: Massive sub-bass thump (the boom you feel) ----
-        // Pure sine from 120Hz to 25Hz, very loud
+        // ---- Layer B: Punchy mid-range explosion (NOT sub-bass) ----
+        // sine 250Hz → 80Hz, half the volume of before
         {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(120, t);
-            osc.frequency.exponentialRampToValueAtTime(25, t + 0.4);
-            gain.gain.setValueAtTime(0.85, t);
-            gain.gain.setValueAtTime(0.85, t + 0.15);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+            osc.frequency.setValueAtTime(250, t);
+            osc.frequency.exponentialRampToValueAtTime(80, t + 0.35);
+            gain.gain.setValueAtTime(0.5, t);
+            gain.gain.setValueAtTime(0.5, t + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
             osc.connect(gain);
             gain.connect(this.sfxGain);
             osc.start(t);
-            osc.stop(t + 0.65);
+            osc.stop(t + 0.55);
         }
 
-        // =========================================================
-        // PHASE 2: DESTRUCTION (0.1s - 1.5s)
-        // =========================================================
-
-        // ---- Layer C: Long rumbling explosion ----
-        const explStart = t + 0.05;
-        const explDur = 1.4;
-        const bufSize = Math.floor(ctx.sampleRate * explDur);
-        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < bufSize; i++) {
-            const progress = i / bufSize;
-            const env = Math.pow(1 - progress, 1.4);
-            const noise = (Math.random() * 2 - 1);
-            // Two low rumble layers
-            const r1 = Math.sin(i / ctx.sampleRate * 55 * (1 - progress * 0.5)) * 0.5;
-            const r2 = Math.sin(i / ctx.sampleRate * 80 * (1 - progress * 0.6)) * 0.35;
-            data[i] = (noise * 0.5 + r1 + r2) * env;
+        // ---- Layer C: Bright noise burst (highpass, sharp attack) ----
+        const noiseStart = t;
+        const noiseDur = 0.5;
+        const noiseBufSize = Math.floor(ctx.sampleRate * noiseDur);
+        const noiseBuf = ctx.createBuffer(1, noiseBufSize, ctx.sampleRate);
+        const noiseData = noiseBuf.getChannelData(0);
+        for (let i = 0; i < noiseBufSize; i++) {
+            const progress = i / noiseBufSize;
+            const env = Math.pow(1 - progress, 1.8);
+            noiseData[i] = (Math.random() * 2 - 1) * env;
         }
-        const explSrc = ctx.createBufferSource();
-        explSrc.buffer = buf;
-        const explGain = ctx.createGain();
-        explGain.gain.setValueAtTime(0.55, explStart);
-        explGain.gain.exponentialRampToValueAtTime(0.001, explStart + explDur);
-        const explFilter = ctx.createBiquadFilter();
-        explFilter.type = 'lowpass';
-        explFilter.frequency.setValueAtTime(2000, explStart);
-        explFilter.frequency.exponentialRampToValueAtTime(80, explStart + explDur);
-        explFilter.Q.value = 1.5;
-        explSrc.connect(explFilter);
-        explFilter.connect(explGain);
-        explGain.connect(this.sfxGain);
-        explSrc.start(explStart);
+        const noiseSrc = ctx.createBufferSource();
+        noiseSrc.buffer = noiseBuf;
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.32, noiseStart);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, noiseStart + noiseDur);
+        const noiseFilter = ctx.createBiquadFilter();
+        noiseFilter.type = 'highpass';
+        noiseFilter.frequency.setValueAtTime(800, noiseStart);
+        noiseFilter.frequency.linearRampToValueAtTime(2500, noiseStart + noiseDur);
+        noiseSrc.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.sfxGain);
+        noiseSrc.start(noiseStart);
 
-        // ---- Layer D: Distorted descending death roar (the "AAARGH") ----
-        // Two detuned sawtooth + waveshaper distortion, sweeps from 350Hz to 30Hz
-        const roarStart = t + 0.25;
-        const roarDur = 0.95;
-        // Build a soft-clip distortion curve once
-        const distCurve = new Float32Array(2048);
-        for (let i = 0; i < 2048; i++) {
-            const x = (i / 1024) - 1;
-            // tanh-like soft clipper, amount = 4
-            distCurve[i] = Math.tanh(x * 4);
-        }
-        const shaper = ctx.createWaveShaper();
-        shaper.curve = distCurve;
-        shaper.oversample = '2x';
-        const roarMixGain = ctx.createGain();
-        roarMixGain.gain.setValueAtTime(0, roarStart);
-        roarMixGain.gain.linearRampToValueAtTime(0.32, roarStart + 0.05);
-        roarMixGain.gain.setValueAtTime(0.32, roarStart + roarDur * 0.5);
-        roarMixGain.gain.exponentialRampToValueAtTime(0.001, roarStart + roarDur);
-        const roarFilter = ctx.createBiquadFilter();
-        roarFilter.type = 'lowpass';
-        roarFilter.frequency.setValueAtTime(1500, roarStart);
-        roarFilter.frequency.exponentialRampToValueAtTime(150, roarStart + roarDur);
-        roarFilter.Q.value = 5;
-        shaper.connect(roarFilter);
-        roarFilter.connect(roarMixGain);
-        roarMixGain.connect(this.sfxGain);
-
-        for (let i = 0; i < 2; i++) {
+        // ---- Layer D: Bright shrapnel sparkles (multiple short high pings) ----
+        const sparkleTimes = [0.08, 0.16, 0.24, 0.32, 0.42];
+        const sparkleFreqs = [2200, 1800, 2600, 3200, 2400];
+        sparkleTimes.forEach((offset, idx) => {
+            const sStart = t + offset;
             const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = sparkleFreqs[idx];
+            gain.gain.setValueAtTime(0, sStart);
+            gain.gain.linearRampToValueAtTime(0.06, sStart + 0.005);
+            gain.gain.exponentialRampToValueAtTime(0.001, sStart + 0.15);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(sStart);
+            osc.stop(sStart + 0.16);
+        });
+
+        // =========================================================
+        // PHASE 2: BUILD-UP (0.4s - 0.8s) - ascending riser
+        // =========================================================
+
+        // ---- Layer E: Ascending riser (sawtooth pitch sweep up) ----
+        {
+            const riserStart = t + 0.4;
+            const riserDur = 0.4;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
             osc.type = 'sawtooth';
-            const detune = i === 0 ? 1 : 1.008;
-            osc.frequency.setValueAtTime(350 * detune, roarStart);
-            osc.frequency.exponentialRampToValueAtTime(30 * detune, roarStart + roarDur);
-            osc.connect(shaper);
-            osc.start(roarStart);
-            osc.stop(roarStart + roarDur + 0.05);
+            osc.frequency.setValueAtTime(200, riserStart);
+            osc.frequency.exponentialRampToValueAtTime(800, riserStart + riserDur);
+            gain.gain.setValueAtTime(0, riserStart);
+            gain.gain.linearRampToValueAtTime(0.12, riserStart + riserDur * 0.7);
+            gain.gain.exponentialRampToValueAtTime(0.001, riserStart + riserDur + 0.05);
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1500, riserStart);
+            filter.frequency.linearRampToValueAtTime(4500, riserStart + riserDur);
+            filter.Q.value = 4;
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(riserStart);
+            osc.stop(riserStart + riserDur + 0.08);
         }
 
         // =========================================================
-        // PHASE 3: VICTORY (1.5s - 3.5s)
+        // PHASE 3: VICTORY (0.8s - 2.8s) - bright triumphant fanfare
         // =========================================================
 
-        // ---- Layer E: Brass-like victory fanfare ----
-        // Major chord arpeggiated then sustained: C5 E5 G5 C6
-        // Uses sawtooth + lowpass envelope for brass timbre
-        const fanfareStart = t + 1.5;
-        const arpDelay = 0.07;
-        const sustainDur = 1.6;
+        const fanfareStart = t + 0.8;
+
+        // ---- Layer F: Triumphant brass chord (C major: C5 E5 G5 C6) ----
+        // Quick arpeggio entry (16th-note feel) then sustains
         const chordNotes = [523.25, 659.25, 783.99, 1046.5];
+        const arpDelay = 0.06;
+        const sustainDur = 1.7;
 
         chordNotes.forEach((freq, idx) => {
             const noteStart = fanfareStart + idx * arpDelay;
             const noteEnd = fanfareStart + sustainDur;
 
-            const osc = ctx.createOscillator();
+            // Saw + square layered = bright brass-like timbre
+            const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
+            const osc3 = ctx.createOscillator(); // octave above for brilliance
             const gain = ctx.createGain();
 
-            osc.type = 'sawtooth';
-            osc2.type = 'sawtooth';
-            osc.frequency.value = freq;
-            osc2.frequency.value = freq * 1.005; // slight detune for richness
+            osc1.type = 'sawtooth';
+            osc2.type = 'square';
+            osc3.type = 'triangle';
+            osc1.frequency.value = freq;
+            osc2.frequency.value = freq * 1.005; // detune
+            osc3.frequency.value = freq * 2;     // octave up
 
-            // Brass-like ADSR: quick attack, slight decay, sustain, release
+            // Punchy ADSR with bright attack
             gain.gain.setValueAtTime(0, noteStart);
-            gain.gain.linearRampToValueAtTime(0.11, noteStart + 0.04);
-            gain.gain.linearRampToValueAtTime(0.085, noteStart + 0.1);
-            gain.gain.setValueAtTime(0.085, noteEnd - 0.4);
+            gain.gain.linearRampToValueAtTime(0.13, noteStart + 0.03);
+            gain.gain.linearRampToValueAtTime(0.10, noteStart + 0.12);
+            gain.gain.setValueAtTime(0.10, noteEnd - 0.5);
             gain.gain.exponentialRampToValueAtTime(0.001, noteEnd);
 
-            // Brass timbre: bright lowpass that opens slightly on attack
+            // Bright lowpass that opens on attack
             const filter = ctx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(1200, noteStart);
-            filter.frequency.linearRampToValueAtTime(2400, noteStart + 0.06);
-            filter.frequency.exponentialRampToValueAtTime(1600, noteEnd);
-            filter.Q.value = 2;
+            filter.frequency.setValueAtTime(1500, noteStart);
+            filter.frequency.linearRampToValueAtTime(4000, noteStart + 0.08);
+            filter.frequency.exponentialRampToValueAtTime(2200, noteEnd);
+            filter.Q.value = 1.5;
 
-            osc.connect(filter);
+            osc1.connect(filter);
             osc2.connect(filter);
+            // Octave layer goes through its own gain at lower volume
+            const octGain = ctx.createGain();
+            octGain.gain.setValueAtTime(0.25, noteStart);
+            osc3.connect(octGain);
+            octGain.connect(filter);
+
             filter.connect(gain);
             gain.connect(this.sfxGain);
-            osc.start(noteStart);
-            osc.stop(noteEnd + 0.05);
-            osc2.start(noteStart);
-            osc2.stop(noteEnd + 0.05);
+
+            osc1.start(noteStart); osc1.stop(noteEnd + 0.05);
+            osc2.start(noteStart); osc2.stop(noteEnd + 0.05);
+            osc3.start(noteStart); osc3.stop(noteEnd + 0.05);
         });
 
-        // ---- Layer F: Sub-bass tonic drone for fanfare weight ----
-        // Plays C3 underneath the chord
+        // ---- Layer G: Bell shimmer (high C7 + E7 sparkle on chord top) ----
+        const bellNotes = [
+            { freq: 2093, start: 0.0, dur: 1.5 },  // C7
+            { freq: 2637, start: 0.15, dur: 1.4 }, // E7
+            { freq: 3136, start: 0.3, dur: 1.3 },  // G7
+        ];
+        bellNotes.forEach(b => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = b.freq;
+            const start = fanfareStart + b.start;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.07, start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + b.dur);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(start);
+            osc.stop(start + b.dur + 0.05);
+        });
+
+        // ---- Layer H: Single warm bass note (C3) for chord foundation ----
+        // Much softer than before, just a hint of warmth
         {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -510,29 +542,13 @@ export class AudioManager {
             const start = fanfareStart;
             const end = fanfareStart + sustainDur;
             gain.gain.setValueAtTime(0, start);
-            gain.gain.linearRampToValueAtTime(0.18, start + 0.08);
-            gain.gain.setValueAtTime(0.18, end - 0.4);
+            gain.gain.linearRampToValueAtTime(0.10, start + 0.06);
+            gain.gain.setValueAtTime(0.10, end - 0.4);
             gain.gain.exponentialRampToValueAtTime(0.001, end);
             osc.connect(gain);
             gain.connect(this.sfxGain);
             osc.start(start);
             osc.stop(end + 0.05);
-        }
-
-        // ---- Layer G: Bright top "ding" for shimmer (high C7 bell) ----
-        {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = 2093; // C7
-            const start = fanfareStart + 0.15;
-            gain.gain.setValueAtTime(0, start);
-            gain.gain.linearRampToValueAtTime(0.08, start + 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.001, start + 1.4);
-            osc.connect(gain);
-            gain.connect(this.sfxGain);
-            osc.start(start);
-            osc.stop(start + 1.5);
         }
     }
 

@@ -229,29 +229,37 @@ export class PowerUpSystem {
             ctx.restore();
         }
 
-        // Draw active effect indicators
-        this._drawActiveEffects(ctx);
+        // Active effect indicators are now rendered by UISystem.drawHUD
+        // to avoid HUD layout conflicts. See ui.js for the buff stack.
     }
 
-    _drawActiveEffects(ctx) {
-        let yOffset = GAME_HEIGHT - 95;
-
+    /**
+     * Draw the active power-up effect labels onto the HUD buff stack.
+     * Called by UISystem.drawHUD with a starting Y for the next slot.
+     * Returns the Y of the slot AFTER all buffs were drawn (for chaining).
+     */
+    drawActiveEffectsOn(ctx, startY, lineH) {
+        let y = startY;
         if (this.activeEffects.shield.active) {
-            const remaining = this.activeEffects.shield.hitsLeft;
             ctx.fillStyle = '#4488ff';
             ctx.font = '10px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(`SHIELD: ${remaining} HITS`, 10, yOffset);
-            yOffset += 15;
+            ctx.fillText(`SHIELD: ${this.activeEffects.shield.hitsLeft} HITS`, 10, y);
+            y -= lineH;
         }
-
         if (this.activeEffects.rapidFire.active) {
             const timeLeft = Math.ceil(this.activeEffects.rapidFire.duration / 60);
             ctx.fillStyle = '#ffff00';
             ctx.font = '10px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(`RAPID FIRE: ${timeLeft}S`, 10, yOffset);
+            ctx.fillText(`RAPID FIRE: ${timeLeft}S`, 10, y);
+            y -= lineH;
         }
+        return y;
+    }
+
+    _drawActiveEffects(ctx) {
+        // Deprecated: replaced by drawActiveEffectsOn for unified HUD layout.
     }
 
     clear() {

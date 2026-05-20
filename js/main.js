@@ -626,7 +626,7 @@ class Game {
         this.levelManager.drawTransition(ctx);
 
         // HUD
-        this.ui.drawHUD(ctx, this.player, this.levelManager);
+        this.ui.drawHUD(ctx, this.player, this.levelManager, this.powerups);
         this.ui.drawNotifications(ctx);
         this.ui.drawFlash(ctx);
 

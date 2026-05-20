@@ -49,37 +49,63 @@ export class UISystem {
         };
     }
 
-    drawHUD(ctx, player, levelManager) {
+    drawHUD(ctx, player, levelManager, powerups) {
         ctx.save();
 
-        // Score
+        // ==========================================================
+        // LEFT-BOTTOM STACK (bottom up, 20px line height)
+        // Index 0 = bottom-most line.
+        // Indices: 0 SCORE, 1 LIVES, 2 SHIELD, 3 BOMB, 4+ buffs
+        // ==========================================================
+        const lineH = 20;
+        const baseY = GAME_HEIGHT - 15;
+        const yAt = (idx) => baseY - idx * lineH;
+        ctx.textAlign = 'left';
+
+        // 0. Score
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 14px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(`SCORE: ${player.score.toString().padStart(8, '0')}`, 10, GAME_HEIGHT - 15);
+        ctx.fillText(`SCORE: ${player.score.toString().padStart(8, '0')}`, 10, yAt(0));
 
-        // Lives
+        // 1. Lives
         ctx.fillStyle = '#44ff44';
         ctx.font = '12px monospace';
         let livesText = 'LIVES: ';
         for (let i = 0; i < player.lives; i++) livesText += '\u2665 ';
-        ctx.fillText(livesText, 10, GAME_HEIGHT - 35);
+        ctx.fillText(livesText, 10, yAt(1));
 
-        // Shield
+        // 2. Shield
         ctx.fillStyle = '#4488ff';
         let shieldText = 'SHIELD: ';
         for (let i = 0; i < player.maxShield; i++) {
             shieldText += i < player.shield ? '\u25a0' : '\u25a1';
         }
-        ctx.fillText(shieldText, 10, GAME_HEIGHT - 55);
+        ctx.fillText(shieldText, 10, yAt(2));
 
-        // Bombs
+        // 3. Bombs
         ctx.fillStyle = '#ffaa00';
         let bombText = 'BOMB: ';
         for (let i = 0; i < player.bombs; i++) bombText += '\u25cf ';
-        ctx.fillText(bombText, 10, GAME_HEIGHT - 75);
+        ctx.fillText(bombText, 10, yAt(3));
 
-        // Weapon info (enhanced)
+        // 4+ Buff stack: missile + active power-ups, 15px line height
+        const buffLineH = 15;
+        let buffY = yAt(4);
+
+        if (player.hasTempMissile) {
+            ctx.fillStyle = '#ff8800';
+            ctx.font = '10px monospace';
+            ctx.fillText('MISSILE ACTIVE', 10, buffY);
+            buffY -= buffLineH;
+        }
+
+        if (powerups && typeof powerups.drawActiveEffectsOn === 'function') {
+            powerups.drawActiveEffectsOn(ctx, buffY, buffLineH);
+        }
+
+        // ==========================================================
+        // RIGHT-BOTTOM AREA: weapon info + energy + level
+        // ==========================================================
         const weaponInfo = player.getWeaponInfo ? player.getWeaponInfo() : null;
         if (weaponInfo) {
             // Show current weapon type
@@ -91,6 +117,8 @@ export class UISystem {
             };
             const weaponName = weaponNames[weaponInfo.type] || 'UNKNOWN';
             ctx.fillStyle = '#ff8844';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'left';
             ctx.fillText(`WEAPON: ${weaponName}`, GAME_WIDTH - 150, GAME_HEIGHT - 15);
 
             // Energy bar for laser
@@ -123,20 +151,16 @@ export class UISystem {
         } else {
             // Fallback to weapon level display
             ctx.fillStyle = '#ff8844';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'left';
             ctx.fillText(`WEAPON: LV${player.weaponLevel}`, GAME_WIDTH - 110, GAME_HEIGHT - 15);
         }
 
-        // Level info
+        // Level info (top-right of energy bar area)
         ctx.fillStyle = '#aaaaff';
+        ctx.font = '12px monospace';
         ctx.textAlign = 'right';
         ctx.fillText(`${levelManager.getLevelName()}`, GAME_WIDTH - 10, GAME_HEIGHT - 55);
-
-        // Temp missile indicator
-        if (player.hasTempMissile) {
-            ctx.fillStyle = '#ff8800';
-            ctx.textAlign = 'left';
-            ctx.fillText('MISSILE ACTIVE', 10, GAME_HEIGHT - 95);
-        }
 
         ctx.restore();
     }
