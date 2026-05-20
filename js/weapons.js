@@ -40,6 +40,10 @@ export class WeaponSystem {
         this.energyRegen = 0.5; // per frame
         this.laserCost = 2; // per frame
 
+        // Safety: frames since last successful fire (prevents cooldown stuck)
+        this._lastFired = 0;
+        this._forceFireThreshold = 120; // force fire after 120 frames of no fire
+
         this._initWeapons();
     }
 
@@ -85,6 +89,9 @@ export class WeaponSystem {
     }
 
     update(dt, playerX, playerY, enemies) {
+        // Increment frames-since-last-fire timer (mobile safety net)
+        this._lastFired += dt * 60;
+
         // Update cooldowns
         for (const [type, weapon] of this.weapons) {
             if (typeof weapon.fireCooldown !== 'number' || isNaN(weapon.fireCooldown) || weapon.fireCooldown === Infinity) {
@@ -92,6 +99,7 @@ export class WeaponSystem {
             }
             if (weapon.fireCooldown > 0) {
                 weapon.fireCooldown -= dt * 60;
+                if (weapon.fireCooldown < 0) weapon.fireCooldown = 0;
             }
         }
 
@@ -108,7 +116,25 @@ export class WeaponSystem {
 
     fire(x, y, enemies) {
         const weapon = this.weapons.get(this.currentWeapon);
-        if (!weapon || weapon.fireCooldown > 0) return;
+
+        // Safety: if weapon config missing, fallback to NORMAL
+        if (!weapon) {
+            this.currentWeapon = WEAPON_TYPES.NORMAL;
+            return this.fire(x, y, enemies);
+        }
+
+        // Safety: force fire if cooldown stuck too long (mobile background fix)
+        if (this._lastFired > this._forceFireThreshold) {
+            weapon.fireCooldown = 0;
+            this._lastFired = 0;
+        }
+
+        if (weapon.fireCooldown > 0) return;
+
+        // Safety: ensure fireRate is valid
+        if (typeof weapon.fireRate !== 'number' || weapon.fireRate <= 0) {
+            weapon.fireRate = 6;
+        }
 
         switch (this.currentWeapon) {
             case WEAPON_TYPES.NORMAL:
@@ -127,6 +153,9 @@ export class WeaponSystem {
                 weapon.fireCooldown = weapon.fireRate;
                 break;
         }
+
+        // Reset safety timer on successful fire
+        this._lastFired = 0;
     }
 
     _fireNormal(x, y) {
