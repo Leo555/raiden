@@ -34,11 +34,11 @@
     <!-- Preload critical resources.
          data-cfasync="false" tells Cloudflare Rocket Loader to leave these alone;
          Rocket Loader is incompatible with native ES modules and will break the game. -->
-    <link rel="preload" href="/css/style.css" as="style">
-    <link rel="modulepreload" href="/js/main.js">
-    <link rel="modulepreload" href="/js/utils.js">
+    <link rel="preload" href="/css/style.css?v=540x960" as="style">
+    <link rel="modulepreload" href="/js/main.js?v=540x960">
+    <link rel="modulepreload" href="/js/utils.js?v=540x960">
 
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/style.css?v=540x960">
 </head>
 <body>
     <div id="gameContainer">
@@ -46,6 +46,6 @@
     </div>
     <!-- data-cfasync="false" disables Cloudflare Rocket Loader for this script,
          which is required because Rocket Loader cannot handle ES modules. -->
-    <script type="module" src="/js/main.js" data-cfasync="false"></script>
+    <script type="module" src="/js/main.js?v=540x960" data-cfasync="false"></script>
 </body>
 </html>
