@@ -152,11 +152,16 @@ export class Boss {
 
         if (this.defeated) {
             this.defeatTimer += dt * 60;
+            // Visual: small chained explosions all over the boss
             if (this.defeatTimer % 6 < 1) {
                 const ex = this.x + randRange(0, this.width);
                 const ey = this.y + randRange(0, this.height);
                 this.particles.explode(ex, ey, 1);
-                this.audio.playExplosion(0.6);
+            }
+            // Audio: heavier boss-specific chained explosions, less often than visuals
+            // (every 12 frames ≈ 5 per second to avoid overlapping/muddy sound)
+            if (this.defeatTimer % 12 < 1) {
+                this.audio.playBossSmallExplosion();
             }
             if (this.defeatTimer > 100) {
                 // Final epic explosion
@@ -167,7 +172,8 @@ export class Boss {
                     const ey = this.y + this.height / 2 + Math.sin(a) * 30;
                     this.particles.explode(ex, ey, 1.5);
                 }
-                this.audio.playExplosion(3);
+                // Cinematic boss defeat sound (descending roar + impact + victory chord)
+                this.audio.playBossDefeat();
 
                 // 100% power-up drop on boss defeat
                 if (this.powerups) {
