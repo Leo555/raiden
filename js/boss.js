@@ -51,6 +51,23 @@ export class Boss {
         // frame with shadowBlur+arc+fill. Bake the glowing ball into a
         // tiny offscreen canvas keyed by color.
         this._orbitalSprites = new Map();
+
+        // Offscreen render target for the boss body. Each frame we paint
+        // the whole boss into this small canvas first, then blit it once
+        // to the main canvas. Why this is faster:
+        //   - shadowBlur cost on a canvas2D context scales with the
+        //     **bounding box** the engine has to soften, not just the
+        //     pixels you draw. Doing 30+ shadowBlur ops on a 200x200
+        //     offscreen canvas is dramatically cheaper than on the
+        //     540x960 main canvas - especially on integrated GPUs.
+        //   - We also avoid polluting the main canvas's GPU state with
+        //     all the shadow toggles, which keeps the rest of the
+        //     pipeline (bullets, particles, UI) running smoothly.
+        // The canvas is sized big enough to contain the largest boss
+        // sprite plus its wings sticking out and a shadowBlur margin.
+        this._bossCanvasSize = 280;
+        this._bossCanvas = null;     // lazily created on first draw
+        this._bossCtx = null;
     }
 
     _getOrbitalSprite(color) {
@@ -972,14 +989,39 @@ export class Boss {
         // Flash on hit
         const baseColor = this.flashTimer > 0 ? '#ffffff' : this.color;
 
-        switch (this.bossType) {
-            case 1: this._drawBoss1(ctx, cx, cy, baseColor); break;
-            case 2: this._drawBoss2(ctx, cx, cy, baseColor); break;
-            case 3: this._drawBoss3(ctx, cx, cy, baseColor); break;
-            case 4: this._drawBoss4(ctx, cx, cy, baseColor); break;
-            case 5: this._drawBoss5(ctx, cx, cy, baseColor); break;
-            case 6: this._drawBoss6(ctx, cx, cy, baseColor); break;
+        // ----------------------------------------------------------
+        // Render the boss body into a small offscreen canvas first,
+        // then blit it once. shadowBlur cost is O(bounding-box), so a
+        // 280x280 offscreen target is several times cheaper than
+        // doing the same shadow work directly on the 540x960 main
+        // canvas. The offscreen canvas is reused across frames and
+        // cleared in place.
+        // ----------------------------------------------------------
+        if (!this._bossCanvas) {
+            this._bossCanvas = document.createElement('canvas');
+            this._bossCanvas.width = this._bossCanvasSize;
+            this._bossCanvas.height = this._bossCanvasSize;
+            this._bossCtx = this._bossCanvas.getContext('2d');
         }
+        const off = this._bossCtx;
+        const half = this._bossCanvasSize / 2;
+        off.setTransform(1, 0, 0, 1, 0, 0);
+        off.clearRect(0, 0, this._bossCanvasSize, this._bossCanvasSize);
+        // Translate so that world-space (cx, cy) maps to the offscreen
+        // center. The _drawBossN methods can then keep using their
+        // existing absolute coordinates without modification.
+        off.setTransform(1, 0, 0, 1, half - cx, half - cy);
+
+        switch (this.bossType) {
+            case 1: this._drawBoss1(off, cx, cy, baseColor); break;
+            case 2: this._drawBoss2(off, cx, cy, baseColor); break;
+            case 3: this._drawBoss3(off, cx, cy, baseColor); break;
+            case 4: this._drawBoss4(off, cx, cy, baseColor); break;
+            case 5: this._drawBoss5(off, cx, cy, baseColor); break;
+            case 6: this._drawBoss6(off, cx, cy, baseColor); break;
+        }
+
+        ctx.drawImage(this._bossCanvas, cx - half, cy - half);
 
         // Phase glow effect
         if (this.phase > 0 && !this.defeated) {
