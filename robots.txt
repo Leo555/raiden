@@ -8,4 +8,4 @@ Allow: /
 Disallow: /_vercel/
 Disallow: /sw.js
 
-Sitemap: https://raiden-storm.vercel.app/sitemap.xml
+Sitemap: https://raiden.lz5z.com/sitemap.xml
