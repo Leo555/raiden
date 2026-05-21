@@ -3,23 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Raiden Storm - Classic Arcade Shooter</title>
+    <title>Raiden Storm - Free Online Vertical Shooter | Bullet Hell HTML5 Arcade Game</title>
 
-    <!-- SEO -->
-    <meta name="description" content="Raiden Storm - A classic vertical scrolling shooter game with 5 levels, epic boss fights, weapon upgrades, and procedural audio. Play now in your browser!">
-    <meta name="keywords" content="raiden, shooter, arcade, game, HTML5, canvas, browser game">
+    <!-- ============================================================
+         SEO: primary meta. Keep <title> ≤ 60 chars and description
+         around 150-160 chars so Google doesn't truncate them.
+         ============================================================ -->
+    <meta name="description" content="Play Raiden Storm free in your browser - a classic vertical scrolling shoot 'em up (shmup) with 6 epic bosses, weapon upgrades, bullet-hell waves, and combo scoring. No download, no signup, instant arcade action.">
+    <meta name="keywords" content="raiden, raiden storm, raiden shooter, vertical shooter, scrolling shooter, shoot em up, shmup, bullet hell, arcade game, html5 game, browser game, online shooter, free shooter game, plane shooter, space shooter, retro shooter, classic arcade, top-down shooter, arcade shmup, web game, no-download game, raiden game online">
     <meta name="author" content="Raiden Storm">
+    <meta name="application-name" content="Raiden Storm">
+    <meta name="apple-mobile-web-app-title" content="Raiden Storm">
 
-    <!-- Open Graph -->
-    <meta property="og:title" content="Raiden Storm - Classic Arcade Shooter">
-    <meta property="og:description" content="A classic vertical scrolling shooter with epic boss fights, weapon upgrades, and combo system. Play free in your browser!">
+    <!-- Indexing directives -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="bingbot" content="index, follow">
+
+    <!-- Canonical: prevents duplicate-content penalties when the site is
+         reached via vercel preview URLs / custom domain / trailing slash. -->
+    <link rel="canonical" href="https://raiden-storm.vercel.app/">
+
+    <!-- Open Graph (Facebook, LinkedIn, WhatsApp, Discord, ...) -->
+    <meta property="og:title" content="Raiden Storm - Free Online Vertical Shooter">
+    <meta property="og:description" content="A classic vertical scrolling shoot 'em up: 6 epic bosses, weapon upgrades, bullet-hell waves, combo scoring. Play free in your browser, no download.">
     <meta property="og:type" content="website">
-    <meta property="og:image" content="/favicon.svg">
+    <meta property="og:url" content="https://raiden-storm.vercel.app/">
+    <meta property="og:image" content="https://raiden-storm.vercel.app/favicon.svg">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:image:alt" content="Raiden Storm logo - vertical shooter">
+    <meta property="og:site_name" content="Raiden Storm">
+    <meta property="og:locale" content="en_US">
 
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Raiden Storm">
-    <meta name="twitter:description" content="Classic arcade shooter - play free in your browser!">
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Raiden Storm - Free Online Vertical Shooter">
+    <meta name="twitter:description" content="Classic arcade shmup with bosses, weapon upgrades, bullet hell. Play free in your browser.">
+    <meta name="twitter:image" content="https://raiden-storm.vercel.app/favicon.svg">
+    <meta name="twitter:image:alt" content="Raiden Storm logo">
 
     <!-- PWA -->
     <meta name="theme-color" content="#0a0a2a">
@@ -30,6 +52,7 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/favicon.svg">
 
     <!-- Preload critical resources.
          data-cfasync="false" tells Cloudflare Rocket Loader to leave these alone;
@@ -48,11 +71,90 @@
     <link rel="modulepreload" href="/js/ui.js">
 
     <link rel="stylesheet" href="/css/style.css">
+
+    <!-- ============================================================
+         Structured data: VideoGame schema. Tells Google explicitly that
+         this page is a playable video game so it can be eligible for
+         the "Game" rich result and improves topical relevance.
+         ============================================================ -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "Raiden Storm",
+        "alternateName": ["Raiden Storm Arcade", "Raiden Shooter"],
+        "description": "Raiden Storm is a free, browser-based vertical scrolling shoot 'em up (shmup). Battle through 6 sectors with epic boss fights, upgrade your weapons by collecting power-ups, and chase high scores in classic arcade tradition.",
+        "url": "https://raiden-storm.vercel.app/",
+        "image": "https://raiden-storm.vercel.app/favicon.svg",
+        "genre": ["Shoot 'em up", "Arcade", "Bullet Hell", "Vertical Shooter"],
+        "gamePlatform": ["Web Browser", "HTML5", "PWA"],
+        "applicationCategory": "Game",
+        "operatingSystem": "Any (Web Browser)",
+        "playMode": "SinglePlayer",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "Raiden Storm"
+        }
+    }
+    </script>
 </head>
 <body>
+    <!-- ============================================================
+         SEO content: a real <h1> + supporting copy that crawlers can
+         index. Hidden visually with the .seo-only class so it doesn't
+         affect the canvas-based UI. This is the standard pattern for
+         single-page canvas games (Google can't read the canvas).
+         The <noscript> block also gives non-JS clients (and some
+         crawlers) a useful fallback.
+         ============================================================ -->
+    <header class="seo-only">
+        <h1>Raiden Storm - Free Online Vertical Shooter (HTML5 Arcade Shmup)</h1>
+        <p>
+            Raiden Storm is a free, browser-based <strong>vertical scrolling shoot 'em up</strong> (shmup)
+            inspired by the classic Raiden arcade series. Pilot your fighter through 6 increasingly
+            challenging sectors, take down epic bosses, upgrade your weapons by collecting power-ups,
+            and chain combos for high scores. No download, no signup - just instant arcade action.
+        </p>
+        <h2>Game features</h2>
+        <ul>
+            <li>Classic top-down vertical shooter gameplay (shmup, bullet hell)</li>
+            <li>6 unique boss battles with multi-phase attack patterns</li>
+            <li>Weapon upgrades, homing missiles, screen-clearing nukes, super shield</li>
+            <li>Combo and grazing system rewarding skilled play</li>
+            <li>Endless mode after the main campaign</li>
+            <li>Smooth 60 FPS HTML5 Canvas rendering, runs on desktop and mobile</li>
+            <li>Procedural Web Audio music and sound effects</li>
+            <li>Free, no installation, no ads, no signup</li>
+        </ul>
+        <h2>How to play</h2>
+        <p>
+            Use <strong>WASD</strong> or <strong>Arrow Keys</strong> to move your ship, or hold a
+            mouse / touch to drag it. Press <strong>SPACE</strong> to launch a screen-clearing bomb
+            and <strong>P</strong> to pause. Collect the <strong>P</strong> power-up to level up
+            your main weapon, and grab rare items like the Nuke (<strong>N</strong>) or Super
+            Shield (<strong>X</strong>) for emergencies.
+        </p>
+    </header>
+
+    <noscript>
+        <div style="color:#fff;background:#000;padding:24px;font-family:monospace;text-align:center">
+            <h1>Raiden Storm requires JavaScript</h1>
+            <p>This is an HTML5 Canvas game. Please enable JavaScript in your browser to play.</p>
+        </div>
+    </noscript>
+
     <div id="gameContainer">
-        <canvas id="gameCanvas" tabindex="0"></canvas>
+        <canvas id="gameCanvas" tabindex="0" aria-label="Raiden Storm vertical shooter game canvas"></canvas>
     </div>
+
     <!-- data-cfasync="false" disables Cloudflare Rocket Loader for this script,
          which is required because Rocket Loader cannot handle ES modules. -->
     <script type="module" src="/js/main.js" data-cfasync="false"></script>

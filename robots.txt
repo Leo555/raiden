@@ -1,0 +1,11 @@
+# Raiden Storm - robots.txt
+# Allow all crawlers full access; the site is a single public game page.
+User-agent: *
+Allow: /
+
+# Don't index the analytics/insights endpoint or the service worker
+# (these aren't useful in search results).
+Disallow: /_vercel/
+Disallow: /sw.js
+
+Sitemap: https://raiden-storm.vercel.app/sitemap.xml

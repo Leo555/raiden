@@ -1,17 +1,21 @@
 {
-  "name": "Raiden Storm",
+  "name": "Raiden Storm - Vertical Shooter",
   "short_name": "Raiden",
-  "description": "A classic vertical scrolling shooter game",
+  "description": "Free browser-based vertical scrolling shoot 'em up with bosses, weapon upgrades and bullet-hell action.",
   "start_url": "/",
+  "scope": "/",
   "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#000000",
   "theme_color": "#0a0a2a",
+  "lang": "en",
+  "categories": ["games", "entertainment"],
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

@@ -36,6 +36,8 @@ const COPY_ENTRIES = [
     'favicon.svg',
     'manifest.json',
     'sw.js',
+    'robots.txt',
+    'sitemap.xml',
 ];
 
 // ------------------------------------------------------------------
