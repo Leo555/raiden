@@ -293,6 +293,20 @@ function rewriteHtmlAssets(html) {
             return h ? `${p}/css/${f}?v=${h}${s}` : m;
         }
     );
+
+    // Inline the entire CSS into the <style>/*__INLINE_CSS__*/</style>
+    // placeholder so the first paint doesn't have to wait for an
+    // additional /css/style.css round-trip. The placeholder is the
+    // canonical site-wide CSS source; we stitch every minified .css
+    // file together (currently just one).
+    let inlineCss = '';
+    for (const file of cssFiles) {
+        inlineCss += minifiedContent.get(file) || '';
+    }
+    if (inlineCss) {
+        html = html.replace('/*__INLINE_CSS__*/', inlineCss);
+    }
+
     return html;
 }
 

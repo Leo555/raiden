@@ -54,11 +54,32 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="apple-touch-icon" href="/favicon.svg">
 
-    <!-- Preload critical resources.
-         data-cfasync="false" tells Cloudflare Rocket Loader to leave these alone;
-         Rocket Loader is incompatible with native ES modules and will break the game. -->
-    <link rel="preload" href="/css/style.css" as="style">
-    <link rel="modulepreload" href="/js/main.js">
+    <!-- ============================================================
+         First-paint: inline the entire CSS (it is tiny - well under
+         1KB minified) directly into <head>. This eliminates a whole
+         render-blocking round-trip to /css/style.css. The build step
+         injects the minified contents of css/style.css into the
+         placeholder below, replacing both the placeholder *and* the
+         original <link rel="stylesheet"> tag below it.
+         ============================================================ -->
+    <style>/*__INLINE_CSS__*/</style>
+
+    <!-- Speed up the third-party Vercel insights script: warm up the
+         TLS handshake to the same origin in parallel with HTML
+         parsing. We use both dns-prefetch and preconnect so older
+         browsers benefit too. The script itself stays `defer` so it
+         can never block first paint. -->
+    <link rel="preconnect" href="https://raiden.lz5z.com" crossorigin>
+    <link rel="dns-prefetch" href="https://raiden.lz5z.com">
+
+    <!-- Preload critical resources: the JS module graph. We list
+         every module that the entry point pulls in so the browser
+         downloads them all in parallel rather than discovering each
+         one through nested static imports.
+         data-cfasync="false" tells Cloudflare Rocket Loader to leave
+         these alone; Rocket Loader is incompatible with native ES
+         modules and will break the game. -->
+    <link rel="modulepreload" href="/js/main.js" fetchpriority="high">
     <link rel="modulepreload" href="/js/utils.js">
     <link rel="modulepreload" href="/js/input.js">
     <link rel="modulepreload" href="/js/audio.js">
@@ -69,8 +90,15 @@
     <link rel="modulepreload" href="/js/enemies.js">
     <link rel="modulepreload" href="/js/boss.js">
     <link rel="modulepreload" href="/js/ui.js">
-
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="modulepreload" href="/js/powerups.js">
+    <link rel="modulepreload" href="/js/collision.js">
+    <link rel="modulepreload" href="/js/levels.js">
+    <link rel="modulepreload" href="/js/combo.js">
+    <link rel="modulepreload" href="/js/floatingText.js">
+    <link rel="modulepreload" href="/js/achievements.js">
+    <link rel="modulepreload" href="/js/challenge.js">
+    <link rel="modulepreload" href="/js/weapons.js">
+    <link rel="modulepreload" href="/js/skins.js">
 
     <!-- ============================================================
          Structured data: VideoGame schema. Tells Google explicitly that
@@ -152,6 +180,16 @@
     </noscript>
 
     <div id="gameContainer">
+        <!-- First-paint loading placeholder. Lives inside the canvas
+             container so it occupies the same flex slot the canvas
+             will fill once the JS bundle has finished evaluating.
+             It is removed by main.js right before the first frame
+             is rendered (see _hideLoadingScreen). -->
+        <div id="loadingScreen" aria-hidden="true">
+            <div id="loadingTitle">RAIDEN STORM</div>
+            <div id="loadingSpinner"></div>
+            <div id="loadingHint">LOADING…</div>
+        </div>
         <canvas id="gameCanvas" tabindex="0" aria-label="Raiden Storm vertical shooter game canvas"></canvas>
     </div>
 

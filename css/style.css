@@ -22,6 +22,7 @@ html, body {
     align-items: center;
     background: #000000;
     overflow: hidden;
+    position: relative;
 }
 
 #gameCanvas {
@@ -64,4 +65,51 @@ canvas {
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
     white-space: nowrap;
+}
+
+/* First-paint loading placeholder. Pure HTML/CSS so it is on screen
+   the moment the browser parses <body> - well before main.js has
+   even finished downloading. Removed by main.js once the game is
+   ready to render (see _hideLoadingScreen). */
+#loadingScreen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    color: #88ccff;
+    font-family: 'Courier New', monospace;
+    z-index: 10;
+    /* Fade-out animation when JS hides this with .hide. */
+    transition: opacity 200ms ease-out;
+}
+#loadingScreen.hide {
+    opacity: 0;
+    pointer-events: none;
+}
+#loadingTitle {
+    font-size: 28px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    text-shadow: 0 0 12px #4488ff, 0 0 24px #4488ff;
+    margin-bottom: 22px;
+}
+#loadingSpinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(136, 204, 255, 0.2);
+    border-top-color: #88ccff;
+    border-radius: 50%;
+    animation: rs-spin 0.9s linear infinite;
+    margin-bottom: 18px;
+}
+@keyframes rs-spin {
+    to { transform: rotate(360deg); }
+}
+#loadingHint {
+    font-size: 12px;
+    letter-spacing: 3px;
+    opacity: 0.6;
 }

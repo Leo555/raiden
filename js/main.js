@@ -95,7 +95,24 @@ class Game {
         // Bind the loop callback once so requestAnimationFrame doesn't
         // allocate a fresh arrow-function closure every frame.
         this._loopBound = (t) => this._loop(t);
-        requestAnimationFrame(this._loopBound);
+
+        // Hide the first-paint loading placeholder. We do it from
+        // requestAnimationFrame so the user sees the canvas filled
+        // with the menu *before* the spinner fades, instead of a
+        // brief black gap.
+        requestAnimationFrame((t) => {
+            this._hideLoadingScreen();
+            this._loop(t);
+        });
+    }
+
+    _hideLoadingScreen() {
+        const el = document.getElementById('loadingScreen');
+        if (!el) return;
+        el.classList.add('hide');
+        // Remove from the DOM after the fade-out so it never accepts
+        // pointer events nor occupies layout.
+        setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 250);
     }
 
     _bindUIEvents() {
