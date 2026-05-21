@@ -29,9 +29,12 @@ const ROOT = path.resolve(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 
 // Files / directories to copy from project root → dist/. Add as needed.
+// Note: css/ is NOT copied because the entire stylesheet is inlined
+// into index.html during rewriteHtmlAssets(). Keeping the source file
+// at css/style.css lets us still hash it for completeness, but no
+// /css/* URL is ever served to the browser.
 const COPY_ENTRIES = [
     'js',
-    'css',
     'index.html',
     'favicon.svg',
     'manifest.json',
