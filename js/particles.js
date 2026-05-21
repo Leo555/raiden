@@ -211,41 +211,53 @@ export class ParticleSystem {
             p.life -= dt * 60;
 
             if (p.life <= 0) {
-                this.particles.splice(i, 1);
+                // O(1) swap-and-pop instead of O(n) splice for the
+                // common case of removing arbitrary particles. Order
+                // doesn't matter visually.
+                const last = this.particles.length - 1;
+                if (i !== last) this.particles[i] = this.particles[last];
+                this.particles.pop();
                 this.pool.release(p);
             }
         }
     }
 
     draw(ctx) {
-        for (const p of this.particles) {
+        // Two-pass render: spark lines first, filled circles second.
+        // Splitting by type lets us avoid repeatedly toggling
+        // strokeStyle <-> fillStyle on the GPU and keeps line segments
+        // batched together. Color and alpha are still per-particle.
+        const list = this.particles;
+        const n = list.length;
+        if (n === 0) return;
+
+        // ---- Pass 1: spark trails (line segments) ----
+        ctx.lineWidth = 1;
+        for (let i = 0; i < n; i++) {
+            const p = list[i];
+            if (p.type !== 'spark') continue;
             const lifeRatio = p.maxLife > 0 ? Math.max(0, Math.min(1, p.life / p.maxLife)) : 0;
-            const alpha = lifeRatio;
+            if (lifeRatio <= 0) continue;
+            ctx.globalAlpha = lifeRatio;
+            ctx.strokeStyle = p.color;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - p.vx * 2, p.y - p.vy * 2);
+            ctx.stroke();
+        }
+
+        // ---- Pass 2: filled circles (default + smoke) ----
+        for (let i = 0; i < n; i++) {
+            const p = list[i];
+            if (p.type === 'spark') continue;
+            const lifeRatio = p.maxLife > 0 ? Math.max(0, Math.min(1, p.life / p.maxLife)) : 0;
             const size = p.shrink ? p.size * lifeRatio : p.size;
-
-            // Skip degenerate particles (avoid sub-pixel rendering artifacts)
-            if (alpha <= 0 || size <= 0) continue;
-
-            ctx.globalAlpha = alpha;
-
-            if (p.type === 'spark') {
-                ctx.strokeStyle = p.color;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x - p.vx * 2, p.y - p.vy * 2);
-                ctx.stroke();
-            } else if (p.type === 'smoke') {
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-                ctx.fill();
-            } else {
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-                ctx.fill();
-            }
+            if (lifeRatio <= 0 || size <= 0) continue;
+            ctx.globalAlpha = lifeRatio;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+            ctx.fill();
         }
         ctx.globalAlpha = 1;
     }

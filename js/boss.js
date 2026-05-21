@@ -46,6 +46,34 @@ export class Boss {
         this.specialTimer = 0;
         this.patternCount = 0;
         this.spiralOffset = 0;
+
+        // Orbital sprite cache: orbital balls are drawn 2-5 times per
+        // frame with shadowBlur+arc+fill. Bake the glowing ball into a
+        // tiny offscreen canvas keyed by color.
+        this._orbitalSprites = new Map();
+    }
+
+    _getOrbitalSprite(color) {
+        let s = this._orbitalSprites.get(color);
+        if (s) return s;
+        const W = 24, H = 24;
+        s = document.createElement('canvas');
+        s.width = W;
+        s.height = H;
+        const sctx = s.getContext('2d');
+        sctx.shadowBlur = 8;
+        sctx.shadowColor = color;
+        sctx.fillStyle = color;
+        sctx.beginPath();
+        sctx.arc(W / 2, H / 2, 4, 0, Math.PI * 2);
+        sctx.fill();
+        sctx.shadowBlur = 0;
+        sctx.fillStyle = '#ffffff';
+        sctx.beginPath();
+        sctx.arc(W / 2, H / 2, 2, 0, Math.PI * 2);
+        sctx.fill();
+        this._orbitalSprites.set(color, s);
+        return s;
     }
 
     spawn(type, level) {
@@ -1030,27 +1058,16 @@ export class Boss {
     _drawOrbitals(ctx, cx, cy) {
         const orbCount = 2 + this.phase;
         const orbRadius = this.width * 0.55;
+        const sprite = this._getOrbitalSprite(this.color);
+        const halfW = sprite.width / 2;
+        const halfH = sprite.height / 2;
 
-        ctx.save();
         for (let i = 0; i < orbCount; i++) {
             const a = this.orbitalAngle + (i / orbCount) * Math.PI * 2;
             const ox = cx + Math.cos(a) * orbRadius;
             const oy = cy + Math.sin(a) * orbRadius * 0.6;
-
-            ctx.fillStyle = this.color;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = this.color;
-            ctx.beginPath();
-            ctx.arc(ox, oy, 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.shadowBlur = 0;
-            ctx.beginPath();
-            ctx.arc(ox, oy, 2, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.drawImage(sprite, ox - halfW, oy - halfH);
         }
-        ctx.restore();
     }
 
     _drawBoss1(ctx, cx, cy, color) {
