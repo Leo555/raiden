@@ -53,6 +53,40 @@ export class BulletSystem {
             (b) => b.reset(),
             500
         );
+        // Pre-rendered sprite cache for hot-path bullets (per color).
+        // Drawing 30+ small bullets per frame with `ctx.shadowBlur` is one
+        // of the biggest performance hits in the canvas pipeline. We bake
+        // the glow once into an offscreen canvas and blit it with
+        // `drawImage`, which is dramatically cheaper.
+        this._normalBulletSprites = new Map(); // color -> HTMLCanvasElement
+    }
+
+    /**
+     * Build (or fetch from cache) a tiny offscreen canvas containing a
+     * pre-rendered "normal" player bullet with its glow already baked in.
+     * Sprite layout (size 12x18, centered):
+     *   - outer glow (shadowBlur)
+     *   - 3x10 colored core
+     *   - 1x8 white-hot inner streak
+     */
+    _getNormalBulletSprite(color) {
+        let s = this._normalBulletSprites.get(color);
+        if (s) return s;
+        const W = 12, H = 18;
+        s = document.createElement('canvas');
+        s.width = W;
+        s.height = H;
+        const sctx = s.getContext('2d');
+        sctx.shadowBlur = 6;
+        sctx.shadowColor = color;
+        sctx.fillStyle = color;
+        // 3x10 core, centered: (W-3)/2 = 4.5 -> 4, (H-10)/2 = 4
+        sctx.fillRect(W / 2 - 1.5, H / 2 - 5, 3, 10);
+        sctx.shadowBlur = 0;
+        sctx.fillStyle = '#ffffff';
+        sctx.fillRect(W / 2 - 0.5, H / 2 - 4, 1, 8);
+        this._normalBulletSprites.set(color, s);
+        return s;
     }
 
     firePlayerBullet(x, y, vx, vy, damage = 1, type = 'normal', color = '#88ccff') {
@@ -461,6 +495,15 @@ export class BulletSystem {
     draw(ctx) {
         // Draw player bullets
         for (const b of this.playerBullets) {
+            // Hot path: plain straight bullets and explosive shells are
+            // both rendered as offscreen sprites and blitted with
+            // drawImage (no shadowBlur per bullet).
+            if (b.type !== 'missile' && b.type !== 'nuke') {
+                const sprite = this._getNormalBulletSprite(b.color || '#88ccff');
+                ctx.drawImage(sprite, b.x - sprite.width / 2, b.y - sprite.height / 2);
+                continue;
+            }
+
             ctx.save();
             if (b.type === 'missile') {
                 ctx.fillStyle = '#ff8800';
@@ -526,14 +569,9 @@ export class BulletSystem {
                 ctx.beginPath();
                 ctx.arc(b.x, b.y, b.radius * 0.4, 0, Math.PI * 2);
                 ctx.fill();
-            } else {
-                ctx.fillStyle = b.color;
-                ctx.shadowBlur = 6;
-                ctx.shadowColor = b.color;
-                ctx.fillRect(b.x - 1.5, b.y - 5, 3, 10);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(b.x - 0.5, b.y - 4, 1, 8);
             }
+            // Note: 'normal' / default bullets are handled above via the
+            // sprite cache and `continue`, so they never reach this block.
             ctx.restore();
         }
 

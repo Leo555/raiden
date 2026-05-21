@@ -35,6 +35,7 @@ const COPY_ENTRIES = [
     'index.html',
     'favicon.svg',
     'manifest.json',
+    'sw.js',
 ];
 
 // ------------------------------------------------------------------
@@ -50,6 +51,15 @@ const COPY_ENTRIES = [
  * - Drops the trailing newline.
  */
 function minifyJs(src) {
+    // Strip non-essential console calls in production builds while keeping
+    // console.error and console.warn (they are valuable for triaging
+    // crashes from real users). The match is intentionally simple:
+    //   console.log(...);    console.info(...);    console.debug(...);
+    // It bails out for any console.* call whose body spans nested template
+    // literals or arrow functions - those are extremely rare in this code
+    // base and not worth the AST cost.
+    src = src.replace(/\bconsole\.(log|info|debug)\s*\([^()]*\)\s*;?/g, '');
+
     let out = '';
     const len = src.length;
     let i = 0;

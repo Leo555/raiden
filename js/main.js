@@ -21,7 +21,12 @@ import { TimeAttackMode, SurvivalMode } from './challenge.js';
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
-        this.ctx = this.canvas.getContext('2d');
+        // alpha:false lets the browser skip per-pixel compositing against
+        // the page background, and disabling smoothing avoids costly
+        // bilinear filtering when the canvas is upscaled on hi-dpi
+        // displays. Both are pure wins for a pixel-art-style game.
+        this.ctx = this.canvas.getContext('2d', { alpha: false });
+        this.ctx.imageSmoothingEnabled = false;
         this.canvas.width = GAME_WIDTH;
         this.canvas.height = GAME_HEIGHT;
 
@@ -87,8 +92,10 @@ class Game {
         // Auto-focus canvas for keyboard input
         this.canvas.focus();
 
-        // Start loop
-        requestAnimationFrame((t) => this._loop(t));
+        // Bind the loop callback once so requestAnimationFrame doesn't
+        // allocate a fresh arrow-function closure every frame.
+        this._loopBound = (t) => this._loop(t);
+        requestAnimationFrame(this._loopBound);
     }
 
     _bindUIEvents() {
@@ -315,7 +322,7 @@ class Game {
         ]));
         const targetInterval = idleStates.has(this.state) ? 1 / 30 : 0;
         if (timestamp - this.lastTime < targetInterval * 1000) {
-            requestAnimationFrame((t) => this._loop(t));
+            requestAnimationFrame(this._loopBound);
             return;
         }
         this.lastTime = timestamp;
@@ -336,7 +343,7 @@ class Game {
             console.error('Game loop error:', e);
         }
 
-        requestAnimationFrame((t) => this._loop(t));
+        requestAnimationFrame(this._loopBound);
     }
 
     _update(dt) {
