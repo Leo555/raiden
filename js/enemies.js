@@ -326,6 +326,127 @@ export class EnemySystem {
         this.spawnTimer = 0;
         this.spawnInterval = 60;
         this.difficulty = 1;
+
+        // Per-(type, flashState) sprite cache. The 4 ENEMY_TYPES bodies
+        // are entirely static - they don't depend on timer or animation -
+        // so we can bake each one into a tiny offscreen canvas and blit
+        // them with drawImage. The HP bar on LARGE enemies is drawn on
+        // top of the sprite each frame because it depends on live HP.
+        this._enemySprites = new Map();
+    }
+
+    /**
+     * Build / fetch the offscreen sprite for a given (type, flash) pair.
+     * The sprite canvas is 64x64 with the enemy centered at (32, 32);
+     * caller passes that center to `drawImage`.
+     */
+    _getEnemySprite(type, flash) {
+        const key = type + '|' + (flash ? 'f' : 'n');
+        let s = this._enemySprites.get(key);
+        if (s) return s;
+
+        const SIZE = 64;
+        s = document.createElement('canvas');
+        s.width = SIZE;
+        s.height = SIZE;
+        const sctx = s.getContext('2d');
+
+        // Build a stand-in enemy at the canvas center so the existing
+        // drawing math (which uses absolute e.x/e.y) "just works".
+        const e = this._spritePrototype(type, SIZE);
+        const cx = e.x + e.width / 2;
+        const cy = e.y + e.height / 2;
+        sctx.fillStyle = flash ? '#ffffff' : e.color;
+
+        switch (type) {
+            case ENEMY_TYPES.SMALL:
+                sctx.beginPath();
+                sctx.moveTo(cx, e.y + e.height);
+                sctx.lineTo(e.x, e.y);
+                sctx.lineTo(e.x + e.width, e.y);
+                sctx.closePath();
+                sctx.fill();
+                sctx.fillStyle = flash ? '#ffffff' : '#ff8866';
+                sctx.fillRect(cx - 3, e.y + 4, 6, 6);
+                break;
+
+            case ENEMY_TYPES.MEDIUM:
+                sctx.beginPath();
+                sctx.moveTo(cx, e.y + e.height);
+                sctx.lineTo(e.x - 3, e.y + e.height * 0.4);
+                sctx.lineTo(e.x + 5, e.y);
+                sctx.lineTo(e.x + e.width - 5, e.y);
+                sctx.lineTo(e.x + e.width + 3, e.y + e.height * 0.4);
+                sctx.closePath();
+                sctx.fill();
+                sctx.fillStyle = flash ? '#ffffff' : '#ff88cc';
+                sctx.beginPath();
+                sctx.arc(cx, cy - 2, 5, 0, Math.PI * 2);
+                sctx.fill();
+                break;
+
+            case ENEMY_TYPES.LARGE:
+                sctx.beginPath();
+                sctx.moveTo(cx, e.y + e.height + 5);
+                sctx.lineTo(e.x - 5, e.y + e.height * 0.5);
+                sctx.lineTo(e.x, e.y);
+                sctx.lineTo(e.x + e.width, e.y);
+                sctx.lineTo(e.x + e.width + 5, e.y + e.height * 0.5);
+                sctx.closePath();
+                sctx.fill();
+                sctx.fillStyle = flash ? '#ffffff' : '#aa33aa';
+                sctx.fillRect(e.x + 5, e.y + 5, e.width - 10, e.height - 15);
+                sctx.fillStyle = flash ? '#ffffff' : '#cc66cc';
+                sctx.beginPath();
+                sctx.arc(cx, cy, 6, 0, Math.PI * 2);
+                sctx.fill();
+                break;
+
+            case ENEMY_TYPES.ELITE:
+                sctx.beginPath();
+                sctx.moveTo(cx, e.y);
+                sctx.lineTo(e.x + e.width, cy);
+                sctx.lineTo(cx, e.y + e.height);
+                sctx.lineTo(e.x, cy);
+                sctx.closePath();
+                sctx.fill();
+                sctx.fillStyle = flash ? '#ffffff' : '#ffcc00';
+                sctx.beginPath();
+                sctx.arc(cx, cy, 5, 0, Math.PI * 2);
+                sctx.fill();
+                sctx.shadowBlur = 8;
+                sctx.shadowColor = '#ffaa00';
+                sctx.beginPath();
+                sctx.arc(cx, cy, 3, 0, Math.PI * 2);
+                sctx.fill();
+                sctx.shadowBlur = 0;
+                break;
+        }
+
+        this._enemySprites.set(key, s);
+        return s;
+    }
+
+    /**
+     * Build the canonical (width, height, color) profile for a given
+     * enemy type, positioned at the center of an offscreen canvas of
+     * size SIZE. Mirrors the dimensions assigned in spawnEnemy().
+     */
+    _spritePrototype(type, SIZE) {
+        const profiles = {
+            [ENEMY_TYPES.SMALL]:  { w: 22, h: 22, color: '#ee5544' },
+            [ENEMY_TYPES.MEDIUM]: { w: 30, h: 28, color: '#cc44aa' },
+            [ENEMY_TYPES.LARGE]:  { w: 40, h: 36, color: '#8844cc' },
+            [ENEMY_TYPES.ELITE]:  { w: 28, h: 28, color: '#ffaa00' },
+        };
+        const p = profiles[type] || profiles[ENEMY_TYPES.SMALL];
+        return {
+            width: p.w,
+            height: p.h,
+            color: p.color,
+            x: (SIZE - p.w) / 2,
+            y: (SIZE - p.h) / 2,
+        };
     }
 
     spawnEnemy(type, x, y, pattern = 'straight', options = {}) {
@@ -563,116 +684,8 @@ export class EnemySystem {
         return false;
     }
 
-    draw(ctx) {
-        for (const e of this.enemies) {
-            if (!e.active) continue;
-
-            // Handle new enemy types
-            if (e instanceof SpeedyEnemy) {
-                e.draw(ctx);
-                continue;
-            }
-            if (e instanceof RotatingEnemy) {
-                e.draw(ctx);
-                continue;
-            }
-            if (e instanceof SuicideEnemy) {
-                e.draw(ctx);
-                continue;
-            }
-
-            ctx.save();
-            const cx = e.x + e.width / 2;
-            const cy = e.y + e.height / 2;
-
-            // Flash white on hit
-            if (e.flashTimer > 0) {
-                ctx.fillStyle = '#ffffff';
-            } else {
-                ctx.fillStyle = e.color;
-            }
-
-            switch (e.type) {
-                case ENEMY_TYPES.SMALL:
-                    ctx.beginPath();
-                    ctx.moveTo(cx, e.y + e.height);
-                    ctx.lineTo(e.x, e.y);
-                    ctx.lineTo(e.x + e.width, e.y);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#ff8866';
-                    ctx.fillRect(cx - 3, e.y + 4, 6, 6);
-                    break;
-
-                case ENEMY_TYPES.MEDIUM:
-                    ctx.beginPath();
-                    ctx.moveTo(cx, e.y + e.height);
-                    ctx.lineTo(e.x - 3, e.y + e.height * 0.4);
-                    ctx.lineTo(e.x + 5, e.y);
-                    ctx.lineTo(e.x + e.width - 5, e.y);
-                    ctx.lineTo(e.x + e.width + 3, e.y + e.height * 0.4);
-                    ctx.closePath();
-                    ctx.fill();
-                    // Cockpit
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#ff88cc';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy - 2, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
-
-                case ENEMY_TYPES.LARGE:
-                    ctx.beginPath();
-                    ctx.moveTo(cx, e.y + e.height + 5);
-                    ctx.lineTo(e.x - 5, e.y + e.height * 0.5);
-                    ctx.lineTo(e.x, e.y);
-                    ctx.lineTo(e.x + e.width, e.y);
-                    ctx.lineTo(e.x + e.width + 5, e.y + e.height * 0.5);
-                    ctx.closePath();
-                    ctx.fill();
-                    // Detail
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#aa33aa';
-                    ctx.fillRect(e.x + 5, e.y + 5, e.width - 10, e.height - 15);
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#cc66cc';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
-                    ctx.fill();
-                    // HP bar
-                    if (e.hp < e.maxHp) {
-                        const barW = e.width;
-                        const hpRatio = e.hp / e.maxHp;
-                        ctx.fillStyle = '#333';
-                        ctx.fillRect(e.x, e.y - 6, barW, 3);
-                        ctx.fillStyle = hpRatio > 0.5 ? '#44ff44' : hpRatio > 0.25 ? '#ffaa00' : '#ff4444';
-                        ctx.fillRect(e.x, e.y - 6, barW * hpRatio, 3);
-                    }
-                    break;
-
-                case ENEMY_TYPES.ELITE:
-                    // Diamond shape
-                    ctx.beginPath();
-                    ctx.moveTo(cx, e.y);
-                    ctx.lineTo(e.x + e.width, cy);
-                    ctx.lineTo(cx, e.y + e.height);
-                    ctx.lineTo(e.x, cy);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#ffcc00';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                    // Glow
-                    ctx.shadowBlur = 8;
-                    ctx.shadowColor = '#ffaa00';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                    break;
-            }
-
-            ctx.restore();
-        }
-    }
+    // (Legacy duplicate draw() removed - the active draw() method is
+    // defined further below, around line 660 in this file.)
 
     clear() {
         this.enemies = [];
@@ -771,114 +784,33 @@ export class EnemySystem {
     // == Draw with new enemy type support ==
 
     draw(ctx) {
+        const SIZE = 64;
+        const half = SIZE / 2;
         for (const e of this.enemies) {
             if (!e.active) continue;
 
-            // Handle new enemy types
-            if (e instanceof SpeedyEnemy) {
-                e.draw(ctx);
-                continue;
-            }
-            if (e instanceof RotatingEnemy) {
-                e.draw(ctx);
-                continue;
-            }
-            if (e instanceof SuicideEnemy) {
-                e.draw(ctx);
-                continue;
-            }
+            // Custom enemy types still draw themselves.
+            if (e instanceof SpeedyEnemy) { e.draw(ctx); continue; }
+            if (e instanceof RotatingEnemy) { e.draw(ctx); continue; }
+            if (e instanceof SuicideEnemy) { e.draw(ctx); continue; }
 
-            // Existing enemy draw logic
-            ctx.save();
+            // Standard enemies are entirely static silhouettes - we
+            // fetch (or build) the cached sprite for (type, flash) and
+            // blit it. Then overlay live HP bar on LARGE enemies.
+            const sprite = this._getEnemySprite(e.type, e.flashTimer > 0);
             const cx = e.x + e.width / 2;
             const cy = e.y + e.height / 2;
+            ctx.drawImage(sprite, cx - half, cy - half);
 
-            // Flash white on hit
-            if (e.flashTimer > 0) {
-                ctx.fillStyle = '#ffffff';
-            } else {
-                ctx.fillStyle = e.color;
+            // HP bar for LARGE - dynamic, kept on the main canvas.
+            if (e.type === ENEMY_TYPES.LARGE && e.hp < e.maxHp) {
+                const barW = e.width;
+                const hpRatio = e.hp / e.maxHp;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(e.x, e.y - 6, barW, 3);
+                ctx.fillStyle = hpRatio > 0.5 ? '#44ff44' : hpRatio > 0.25 ? '#ffaa00' : '#ff4444';
+                ctx.fillRect(e.x, e.y - 6, barW * hpRatio, 3);
             }
-
-            switch (e.type) {
-                case ENEMY_TYPES.SMALL:
-                    ctx.beginPath();
-                    ctx.moveTo(cx, e.y + e.height);
-                    ctx.lineTo(e.x, e.y);
-                    ctx.lineTo(e.x + e.width, e.y);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#ff8866';
-                    ctx.fillRect(cx - 3, e.y + 4, 6, 6);
-                    break;
-
-                case ENEMY_TYPES.MEDIUM:
-                    ctx.beginPath();
-                    ctx.moveTo(cx, e.y + e.height);
-                    ctx.lineTo(e.x - 3, e.y + e.height * 0.4);
-                    ctx.lineTo(e.x + 5, e.y);
-                    ctx.lineTo(e.x + e.width - 5, e.y);
-                    ctx.lineTo(e.x + e.width + 3, e.y + e.height * 0.4);
-                    ctx.closePath();
-                    ctx.fill();
-                    // Cockpit
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#ff88cc';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy - 2, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
-
-                case ENEMY_TYPES.LARGE:
-                    ctx.beginPath();
-                    ctx.moveTo(cx, e.y + e.height + 5);
-                    ctx.lineTo(e.x - 5, e.y + e.height * 0.5);
-                    ctx.lineTo(e.x, e.y);
-                    ctx.lineTo(e.x + e.width, e.y);
-                    ctx.lineTo(e.x + e.width + 5, e.y + e.height * 0.5);
-                    ctx.closePath();
-                    ctx.fill();
-                    // Detail
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#aa33aa';
-                    ctx.fillRect(e.x + 5, e.y + 5, e.width - 10, e.height - 15);
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#cc66cc';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
-                    ctx.fill();
-                    // HP bar
-                    if (e.hp < e.maxHp) {
-                        const barW = e.width;
-                        const hpRatio = e.hp / e.maxHp;
-                        ctx.fillStyle = '#333';
-                        ctx.fillRect(e.x, e.y - 6, barW, 3);
-                        ctx.fillStyle = hpRatio > 0.5 ? '#44ff44' : hpRatio > 0.25 ? '#ffaa00' : '#ff4444';
-                        ctx.fillRect(e.x, e.y - 6, barW * hpRatio, 3);
-                    }
-                    break;
-
-                case ENEMY_TYPES.ELITE:
-                    // Diamond shape
-                    ctx.beginPath();
-                    ctx.moveTo(cx, e.y);
-                    ctx.lineTo(e.x + e.width, cy);
-                    ctx.lineTo(cx, e.y + e.height);
-                    ctx.lineTo(e.x, cy);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.fillStyle = e.flashTimer > 0 ? '#ffffff' : '#ffcc00';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                    // Glow
-                    ctx.shadowBlur = 8;
-                    ctx.shadowColor = '#ffaa00';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                    break;
-            }
-
-            ctx.restore();
         }
     }
 
