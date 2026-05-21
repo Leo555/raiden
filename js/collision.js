@@ -70,14 +70,23 @@ export class CollisionSystem {
 
         for (let bi = bullets.length - 1; bi >= 0; bi--) {
             const b = bullets[bi];
+            // Pre-compute bullet AABB once, then test against every enemy
+            // with an inlined check to avoid allocating two literal objects
+            // per (bullet, enemy) pair (used to be the dominant GC source).
+            const bL = b.x - b.radius;
+            const bR = b.x + b.radius;
+            const bT = b.y - b.radius;
+            const bB = b.y + b.radius;
             for (let ei = enemies.length - 1; ei >= 0; ei--) {
                 const e = enemies[ei];
                 if (!e.active) continue;
 
-                if (rectCollision(
-                    { x: b.x - b.radius, y: b.y - b.radius, width: b.radius * 2, height: b.radius * 2 },
-                    { x: e.x, y: e.y, width: e.width, height: e.height }
-                )) {
+                if (
+                    bL < e.x + e.width &&
+                    bR > e.x &&
+                    bT < e.y + e.height &&
+                    bB > e.y
+                ) {
                     const destroyed = this.enemySystem.damageEnemy(e, b.damage);
 
                     // Show damage number

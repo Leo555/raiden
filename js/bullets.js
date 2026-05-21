@@ -59,6 +59,9 @@ export class BulletSystem {
         // the glow once into an offscreen canvas and blit it with
         // `drawImage`, which is dramatically cheaper.
         this._normalBulletSprites = new Map(); // color -> HTMLCanvasElement
+        // Keyed by `${kind}|${color}|${radius}` so different shapes /
+        // sizes don't collide.
+        this._enemyBulletSprites = new Map();
     }
 
     /**
@@ -86,6 +89,109 @@ export class BulletSystem {
         sctx.fillStyle = '#ffffff';
         sctx.fillRect(W / 2 - 0.5, H / 2 - 4, 1, 8);
         this._normalBulletSprites.set(color, s);
+        return s;
+    }
+
+    /**
+     * Pre-render an enemy bullet variant (default orb, wave diamond,
+     * homing arrowhead, ring/donut). The returned canvas is sized so the
+     * sprite center is at (W/2, H/2) and includes the soft glow.
+     *
+     * Caller is responsible for any rotation/translation - we always
+     * blit centered at the bullet's (x, y).
+     */
+    _getEnemyBulletSprite(kind, color, radius) {
+        const r = Math.max(2, Math.round(radius));
+        const key = `${kind}|${color}|${r}`;
+        let s = this._enemyBulletSprites.get(key);
+        if (s) return s;
+
+        const pad = 8; // glow padding
+        const W = r * 4 + pad * 2;
+        const H = r * 4 + pad * 2;
+        s = document.createElement('canvas');
+        s.width = W;
+        s.height = H;
+        const sctx = s.getContext('2d');
+        const cx = W / 2;
+        const cy = H / 2;
+
+        sctx.shadowColor = color;
+        sctx.fillStyle = color;
+
+        switch (kind) {
+            case 'wave': {
+                // Elongated diamond (oriented vertically; rotation done at blit time)
+                sctx.shadowBlur = 8;
+                sctx.beginPath();
+                sctx.moveTo(cx, cy - r);
+                sctx.lineTo(cx - r * 0.5, cy);
+                sctx.lineTo(cx, cy + r);
+                sctx.lineTo(cx + r * 0.5, cy);
+                sctx.closePath();
+                sctx.fill();
+                sctx.shadowBlur = 0;
+                sctx.fillStyle = '#ffffff';
+                sctx.globalAlpha = 0.7;
+                sctx.beginPath();
+                sctx.arc(cx, cy, r * 0.3, 0, Math.PI * 2);
+                sctx.fill();
+                break;
+            }
+            case 'homing': {
+                // Arrowhead pointing up (caller rotates to velocity)
+                sctx.shadowBlur = 12;
+                sctx.beginPath();
+                sctx.moveTo(cx, cy - r * 1.2);
+                sctx.lineTo(cx - r * 0.6, cy + r * 0.8);
+                sctx.lineTo(cx, cy + r * 0.4);
+                sctx.lineTo(cx + r * 0.6, cy + r * 0.8);
+                sctx.closePath();
+                sctx.fill();
+                sctx.shadowBlur = 0;
+                sctx.fillStyle = '#ffffff';
+                sctx.globalAlpha = 0.8;
+                sctx.beginPath();
+                sctx.arc(cx, cy, r * 0.3, 0, Math.PI * 2);
+                sctx.fill();
+                break;
+            }
+            case 'ring': {
+                // Donut ring with 4 inner dots (caller rotates)
+                sctx.shadowBlur = 8;
+                sctx.strokeStyle = color;
+                sctx.lineWidth = 2.5;
+                sctx.beginPath();
+                sctx.arc(cx, cy, r, 0, Math.PI * 2);
+                sctx.stroke();
+                sctx.shadowBlur = 0;
+                sctx.fillStyle = '#ffffff';
+                sctx.globalAlpha = 0.8;
+                for (let d = 0; d < 4; d++) {
+                    const da = (d / 4) * Math.PI * 2;
+                    sctx.beginPath();
+                    sctx.arc(cx + Math.cos(da) * r * 0.5, cy + Math.sin(da) * r * 0.5, 1.5, 0, Math.PI * 2);
+                    sctx.fill();
+                }
+                break;
+            }
+            case 'orb':
+            default: {
+                // Standard glowing orb
+                sctx.shadowBlur = 4;
+                sctx.beginPath();
+                sctx.arc(cx, cy, r, 0, Math.PI * 2);
+                sctx.fill();
+                sctx.shadowBlur = 0;
+                sctx.fillStyle = '#ffffff';
+                sctx.globalAlpha = 0.6;
+                sctx.beginPath();
+                sctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2);
+                sctx.fill();
+                break;
+            }
+        }
+        this._enemyBulletSprites.set(key, s);
         return s;
     }
 
@@ -577,53 +683,41 @@ export class BulletSystem {
 
         // Draw enemy bullets (enhanced rendering)
         for (const b of this.enemyBullets) {
+            // Hot path: most enemy bullets are static-shape glowing
+            // sprites. We blit them with drawImage and only spin up
+            // ctx.save() + the slower path for animated variants.
+            if (b.type === 'wave' || b.type === 'homing') {
+                const sprite = this._getEnemyBulletSprite(b.type, b.color, b.radius);
+                const angle = b.type === 'wave'
+                    ? b.baseAngle + Math.PI / 2
+                    : Math.atan2(b.vy, b.vx) + Math.PI / 2;
+                ctx.save();
+                ctx.translate(b.x, b.y);
+                ctx.rotate(angle);
+                ctx.drawImage(sprite, -sprite.width / 2, -sprite.height / 2);
+                ctx.restore();
+                continue;
+            }
+            if (b.type === 'ring') {
+                const sprite = this._getEnemyBulletSprite('ring', b.color, b.radius);
+                ctx.save();
+                ctx.translate(b.x, b.y);
+                ctx.rotate(b.rotAngle);
+                ctx.drawImage(sprite, -sprite.width / 2, -sprite.height / 2);
+                ctx.restore();
+                continue;
+            }
+            if (b.type === undefined || b.type === 'enemy') {
+                // Standard glowing orb (default branch in the old switch).
+                // No rotation needed.
+                const sprite = this._getEnemyBulletSprite('orb', b.color, b.radius);
+                ctx.drawImage(sprite, b.x - sprite.width / 2, b.y - sprite.height / 2);
+                continue;
+            }
+
             ctx.save();
 
             switch (b.type) {
-                case 'wave':
-                    // Elongated diamond shape
-                    ctx.translate(b.x, b.y);
-                    ctx.rotate(b.baseAngle + Math.PI / 2);
-                    ctx.fillStyle = b.color;
-                    ctx.shadowBlur = 8;
-                    ctx.shadowColor = b.color;
-                    ctx.beginPath();
-                    ctx.moveTo(0, -b.radius);
-                    ctx.lineTo(-b.radius * 0.5, 0);
-                    ctx.lineTo(0, b.radius);
-                    ctx.lineTo(b.radius * 0.5, 0);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.globalAlpha = 0.7;
-                    ctx.beginPath();
-                    ctx.arc(0, 0, b.radius * 0.3, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
-
-                case 'homing':
-                    // Glowing arrowhead with trail
-                    ctx.translate(b.x, b.y);
-                    const homingAngle = Math.atan2(b.vy, b.vx) + Math.PI / 2;
-                    ctx.rotate(homingAngle);
-                    ctx.fillStyle = b.color;
-                    ctx.shadowBlur = 12;
-                    ctx.shadowColor = b.color;
-                    ctx.beginPath();
-                    ctx.moveTo(0, -b.radius * 1.2);
-                    ctx.lineTo(-b.radius * 0.6, b.radius * 0.8);
-                    ctx.lineTo(0, b.radius * 0.4);
-                    ctx.lineTo(b.radius * 0.6, b.radius * 0.8);
-                    ctx.closePath();
-                    ctx.fill();
-                    // Inner glow
-                    ctx.fillStyle = '#ffffff';
-                    ctx.globalAlpha = 0.8;
-                    ctx.beginPath();
-                    ctx.arc(0, 0, b.radius * 0.3, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
-
                 case 'split':
                     // Pulsing large orb that grows before splitting
                     const pulse = 1 + Math.sin(b.age * 0.3) * 0.3 * b.pulsePhase;
@@ -692,28 +786,6 @@ export class BulletSystem {
                     ctx.stroke();
                     break;
 
-                case 'ring':
-                    // Rotating ring/donut
-                    ctx.translate(b.x, b.y);
-                    ctx.rotate(b.rotAngle);
-                    ctx.strokeStyle = b.color;
-                    ctx.shadowBlur = 8;
-                    ctx.shadowColor = b.color;
-                    ctx.lineWidth = 2.5;
-                    ctx.beginPath();
-                    ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
-                    ctx.stroke();
-                    // Inner dots
-                    ctx.fillStyle = '#ffffff';
-                    ctx.globalAlpha = 0.8;
-                    for (let d = 0; d < 4; d++) {
-                        const da = (d / 4) * Math.PI * 2;
-                        ctx.beginPath();
-                        ctx.arc(Math.cos(da) * b.radius * 0.5, Math.sin(da) * b.radius * 0.5, 1.5, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                    break;
-
                 case 'petal':
                     // Petal/flower shape
                     ctx.translate(b.x, b.y);
@@ -740,20 +812,9 @@ export class BulletSystem {
                     ctx.fill();
                     break;
 
-                default:
-                    // Standard enemy bullet - glowing orb
-                    ctx.fillStyle = b.color;
-                    ctx.shadowBlur = 4;
-                    ctx.shadowColor = b.color;
-                    ctx.beginPath();
-                    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.globalAlpha = 0.6;
-                    ctx.beginPath();
-                    ctx.arc(b.x, b.y, b.radius * 0.4, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
+                // 'wave' / 'homing' / 'ring' / standard orb are drawn
+                // via _getEnemyBulletSprite above and never reach this
+                // switch.
             }
 
             ctx.restore();
