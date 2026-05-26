@@ -16,7 +16,10 @@ import { UISystem } from './ui.js';
 import { ComboSystem } from './combo.js';
 import { FloatingTextSystem } from './floatingText.js';
 import { AchievementSystem } from './achievements.js';
-import { TimeAttackMode, SurvivalMode } from './challenge.js';
+// Note: ./challenge.js is dynamically imported on demand inside
+// _startChallenge() so its ~8 KB doesn't sit in the first-paint
+// critical path. Players who never tap "Challenge Mode" never pay
+// the parse/eval cost.
 
 class Game {
     constructor() {
@@ -144,6 +147,13 @@ class Game {
                     this._startGame(false);
                 } else if (this.ui.isChallengeButtonClicked(x, y)) {
                     this.state = 'challenge_select';
+                    // Warm up the challenge module while the user is
+                    // picking Time Attack vs Survival. The import is
+                    // cached, so the actual _startChallenge() call
+                    // a moment later resolves immediately.
+                    if (!this._challengeModulePromise) {
+                        this._challengeModulePromise = import('./challenge.js');
+                    }
                 } else if (this.ui.isEndlessButtonClicked(x, y)) {
                     this._startGame(true);
                 }
@@ -265,8 +275,21 @@ class Game {
         }
     }
 
-    _startChallenge(mode) {
+    async _startChallenge(mode) {
         this.challengeMode = mode;
+
+        // Lazy-load the challenge module the first time the player
+        // taps Time Attack / Survival. After the first call the
+        // module is cached by the import engine, so subsequent
+        // invocations resolve synchronously off the microtask queue.
+        if (!this._challengeModulePromise) {
+            this._challengeModulePromise = import('./challenge.js');
+        }
+        const { TimeAttackMode, SurvivalMode } = await this._challengeModulePromise;
+
+        // The state may have changed while we were awaiting the
+        // import (e.g. user backed out). Bail out gracefully.
+        if (this.challengeMode !== mode) return;
         this.state = 'challenge_playing';
 
         if (mode === 'time_attack') {

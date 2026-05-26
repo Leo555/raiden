@@ -96,9 +96,14 @@
     <link rel="modulepreload" href="/js/combo.js">
     <link rel="modulepreload" href="/js/floatingText.js">
     <link rel="modulepreload" href="/js/achievements.js">
-    <link rel="modulepreload" href="/js/challenge.js">
     <link rel="modulepreload" href="/js/weapons.js">
     <link rel="modulepreload" href="/js/skins.js">
+
+    <!-- Lower-priority idle prefetch: challenge.js is dynamically
+         imported only when the player taps "Challenge Mode", so we
+         hint the browser to fetch it during idle time, not on the
+         critical path. -->
+    <link rel="prefetch" href="/js/challenge.js" as="script" crossorigin>
 
     <!-- ============================================================
          Structured data: VideoGame schema. Tells Google explicitly that
