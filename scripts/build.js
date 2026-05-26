@@ -315,6 +315,7 @@ function rewriteHtmlAssets(html) {
 
 function copyFileWithTransform(srcFile, destFile) {
     const ext = path.extname(srcFile).toLowerCase();
+    const basename = path.basename(srcFile);
     if (ext === '.js') {
         const min = minifiedContent.get(srcFile) ?? minifyJs(fs.readFileSync(srcFile, 'utf8'));
         fs.writeFileSync(destFile, rewriteJsImports(min), 'utf8');
@@ -332,6 +333,13 @@ function copyFileWithTransform(srcFile, destFile) {
         } catch {
             fs.copyFileSync(srcFile, destFile);
         }
+    } else if (basename === 'sitemap.xml') {
+        // Stamp <lastmod> with the build date so search engines know
+        // the URL was just refreshed. Source XML uses a literal
+        // %BUILD_DATE% placeholder which is replaced here.
+        const today = new Date().toISOString().slice(0, 10);
+        const xml = fs.readFileSync(srcFile, 'utf8').replace(/%BUILD_DATE%/g, today);
+        fs.writeFileSync(destFile, xml, 'utf8');
     } else {
         fs.copyFileSync(srcFile, destFile);
     }
