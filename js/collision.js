@@ -1,6 +1,6 @@
 // collision.js - Collision detection system (Enhanced with Combo & Graze)
 
-import { rectCollision, distance, GAME_WIDTH, GAME_HEIGHT } from './utils.js';
+import { rectCollision, GAME_WIDTH, GAME_HEIGHT } from './utils.js';
 import { SuicideEnemy } from './enemies.js';
 
 export class CollisionSystem {
@@ -306,23 +306,22 @@ export class CollisionSystem {
         if (!this.boss.active || this.boss.entering || this.boss.defeated) return;
 
         const bullets = this.bullets.playerBullets;
-        const bossRect = {
-            x: this.boss.x,
-            y: this.boss.y,
-            width: this.boss.width,
-            height: this.boss.height
-        };
+        // Hoist boss AABB once per frame; bullets are tested against it
+        // with an inlined check so we avoid allocating two literal
+        // objects per bullet.
+        const boL = this.boss.x;
+        const boR = this.boss.x + this.boss.width;
+        const boT = this.boss.y;
+        const boB = this.boss.y + this.boss.height;
 
         for (let bi = bullets.length - 1; bi >= 0; bi--) {
             const b = bullets[bi];
-            const bulletRect = {
-                x: b.x - b.radius,
-                y: b.y - b.radius,
-                width: b.radius * 2,
-                height: b.radius * 2
-            };
+            const bL = b.x - b.radius;
+            const bR = b.x + b.radius;
+            const bT = b.y - b.radius;
+            const bB = b.y + b.radius;
 
-            if (rectCollision(bulletRect, bossRect)) {
+            if (bL < boR && bR > boL && bT < boB && bB > boT) {
                 const defeated = this.boss.damage(b.damage);
 
                 // Show damage number on boss (critical style for big hits)
@@ -368,25 +367,25 @@ export class CollisionSystem {
         if (this.player.invincible || !this.player.active) return;
 
         const bullets = this.bullets.enemyBullets;
-        const playerRect = {
-            x: this.player.x + 8,
-            y: this.player.y + 8,
-            width: this.player.width - 16,
-            height: this.player.height - 16
-        };
+        // Inline player AABB to avoid two object literals per bullet.
+        const pL = this.player.x + 8;
+        const pR = this.player.x + this.player.width - 8;
+        const pT = this.player.y + 8;
+        const pB = this.player.y + this.player.height - 8;
 
         for (let i = bullets.length - 1; i >= 0; i--) {
             const b = bullets[i];
-            const bulletRect = {
-                x: b.x - b.radius,
-                y: b.y - b.radius,
-                width: b.radius * 2,
-                height: b.radius * 2
-            };
+            const bL = b.x - b.radius;
+            const bR = b.x + b.radius;
+            const bT = b.y - b.radius;
+            const bB = b.y + b.radius;
 
-            if (rectCollision(bulletRect, playerRect)) {
+            if (bL < pR && bR > pL && bT < pB && bB > pT) {
                 this.player.hit();
-                bullets.splice(i, 1);
+                // Swap-pop: O(1) removal, order doesn't matter.
+                const last = bullets.length - 1;
+                if (i !== last) bullets[i] = bullets[last];
+                bullets.pop();
                 this.bullets.pool.release(b);
 
                 // Combo breaks on hit
@@ -408,14 +407,20 @@ export class CollisionSystem {
         const playerCX = this.player.x + this.player.width / 2;
         const playerCY = this.player.y + this.player.height / 2;
 
+        // Use squared distances throughout to avoid Math.sqrt() per
+        // bullet (this loop runs every frame on the full enemy bullet
+        // array - in bullet-hell scenes that's 60+ sqrts/frame).
         for (const b of bullets) {
             // Skip bullets already grazed
             if (this.grazedBullets.has(b)) continue;
 
-            const dist = distance(playerCX, playerCY, b.x, b.y);
+            const dx = b.x - playerCX;
+            const dy = b.y - playerCY;
+            const distSq = dx * dx + dy * dy;
+            const inner = this.grazeInner + b.radius;
+            const outer = this.grazeDistance + b.radius;
 
-            // Within graze range but not hitting (hitting is handled separately)
-            if (dist > this.grazeInner + b.radius && dist < this.grazeDistance + b.radius) {
+            if (distSq > inner * inner && distSq < outer * outer) {
                 this.grazedBullets.add(b);
                 this._triggerGraze(b.x, b.y, playerCX, playerCY);
             }
@@ -499,14 +504,15 @@ export class CollisionSystem {
             if (!enemy.active || !(enemy instanceof SuicideEnemy)) continue;
             if (!enemy.isArmed) continue;
 
-            // Check distance to player
+            // Check distance to player (squared - avoid sqrt)
             const enemyCX = enemy.x + enemy.width / 2;
             const enemyCY = enemy.y + enemy.height / 2;
             const dx = playerCX - enemyCX;
             const dy = playerCY - enemyCY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+            const distSq = dx * dx + dy * dy;
+            const r = enemy.explosionRadius;
 
-            if (dist <= enemy.explosionRadius) {
+            if (distSq <= r * r) {
                 // Player takes damage
                 this.player.hit();
 

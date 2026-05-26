@@ -40,6 +40,13 @@ class Game {
         this.frameCount = 0;
         this.fpsTimer = 0;
 
+        // Adaptive quality: 0 = full, 1 = reduced, 2 = potato. Updated
+        // every second from the FPS sample. Subsystems that emit lots
+        // of particles / spawn lots of enemies should consult this to
+        // shed work on weak devices.
+        this._qualityLevel = 0;
+        this._qualityGoodStreak = 0;
+
         // Init systems
         this.input = new InputManager(this.canvas);
         this.audio = new AudioManager();
@@ -374,6 +381,45 @@ class Game {
             this.fps = this.frameCount;
             this.frameCount = 0;
             this.fpsTimer = 0;
+
+            // Adaptive quality. Sustained low FPS means the device
+            // can't keep up - shed visual / spawn load before the
+            // experience degrades further. Quality stays at the worst
+            // level seen so far (we only ratchet up after a longer
+            // good window) to avoid oscillation.
+            const fps = this.fps;
+            let target = 0;
+            if (fps < 35) target = 2;       // potato mode
+            else if (fps < 50) target = 1;  // reduced
+            // ratchet down quickly, ratchet up only after 5s of grace
+            if (target > this._qualityLevel) {
+                const previous = this._qualityLevel;
+                this._qualityLevel = target;
+                this._qualityGoodStreak = 0;
+                // Inform the player we shed visual load. Only on the
+                // first downgrade per session - repeating this every
+                // second would be noise.
+                if (this.ui && previous === 0) {
+                    this.ui.notify('PERFORMANCE MODE ON', 90);
+                }
+            } else if (target < this._qualityLevel) {
+                this._qualityGoodStreak = (this._qualityGoodStreak || 0) + 1;
+                if (this._qualityGoodStreak >= 5) {
+                    this._qualityLevel = target;
+                    this._qualityGoodStreak = 0;
+                }
+            } else {
+                this._qualityGoodStreak = 0;
+            }
+            // Push the quality level to subsystems that can adapt.
+            if (this.particles) this.particles.qualityLevel = this._qualityLevel;
+            if (this.enemySystem) this.enemySystem.qualityLevel = this._qualityLevel;
+            // Tighten the enemy-bullet cap on weak devices: 220 / 150 / 90.
+            if (this.bullets) {
+                this.bullets._enemyBulletCap =
+                    this._qualityLevel === 2 ? 90 :
+                    this._qualityLevel === 1 ? 150 : 220;
+            }
         }
 
         try {

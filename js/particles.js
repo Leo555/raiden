@@ -36,11 +36,34 @@ export class ParticleSystem {
         // bursts. Beyond this we silently drop the request - perceived
         // visual quality stays the same because the screen is already full.
         this.maxParticles = 600;
+        // Adaptive quality (driven by main.js):
+        //   0 = full quality, 1 = reduced (75% emit + 70% cap),
+        //   2 = potato (40% emit + 50% cap).
+        this.qualityLevel = 0;
+    }
+
+    /**
+     * Effective particle cap and emit-rate multiplier given the
+     * current quality level. On low-end devices we want to cut both
+     * the steady-state count *and* the per-call burst size so even a
+     * Nuke effect stays cheap.
+     */
+    _qualityFactors() {
+        switch (this.qualityLevel) {
+            case 1: return { capMul: 0.7, emitMul: 0.75 };
+            case 2: return { capMul: 0.5, emitMul: 0.4 };
+            default: return { capMul: 1, emitMul: 1 };
+        }
     }
 
     emit(x, y, count, options = {}) {
-        // Throttle: never let the live particle count blow past the cap.
-        const room = this.maxParticles - this.particles.length;
+        // Adaptive throttle on low-end devices.
+        const { capMul, emitMul } = this._qualityFactors();
+        if (emitMul < 1) {
+            count = Math.max(1, Math.floor(count * emitMul));
+        }
+        const cap = Math.floor(this.maxParticles * capMul);
+        const room = cap - this.particles.length;
         if (room <= 0) return;
         if (count > room) count = room;
         for (let i = 0; i < count; i++) {

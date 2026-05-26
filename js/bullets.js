@@ -62,6 +62,10 @@ export class BulletSystem {
         // Keyed by `${kind}|${color}|${radius}` so different shapes /
         // sizes don't collide.
         this._enemyBulletSprites = new Map();
+        // Adaptive cap on simultaneous enemy bullets. PerformanceManager
+        // tightens this on weak devices; the default is generous enough
+        // for normal play.
+        this._enemyBulletCap = 220;
     }
 
     /**
@@ -259,6 +263,13 @@ export class BulletSystem {
     }
 
     fireEnemyBullet(x, y, vx, vy, type = 'enemy', color = '#ff4444') {
+        // Hard cap on simultaneous enemy bullets to keep collision /
+        // graze / draw loops bounded on low-end devices. The cap is
+        // tightened in 'potato' / 'reduced' quality modes (set by
+        // PerformanceManager via this._enemyBulletCap).
+        const cap = this._enemyBulletCap || 220;
+        if (this.enemyBullets.length >= cap) return null;
+
         const b = this.pool.get();
         b.x = x;
         b.y = y;
