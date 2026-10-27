@@ -244,14 +244,48 @@ const minifiedContent = new Map(); // absolute path → minified text
 const hashMap = new Map();         // basename       → 8-char hash
 
 for (const file of jsFiles) {
-    const min = minifyJs(fs.readFileSync(file, 'utf8'));
-    minifiedContent.set(file, min);
-    hashMap.set(path.basename(file), hashContent(min));
+    minifiedContent.set(file, minifyJs(fs.readFileSync(file, 'utf8')));
 }
 for (const file of cssFiles) {
     const min = minifyCss(fs.readFileSync(file, 'utf8'));
     minifiedContent.set(file, min);
     hashMap.set(path.basename(file), hashContent(min));
+}
+
+// A JS file's delivered bytes include the ?v=HASH of every module it imports
+// (see rewriteJsImports). So its own URL hash MUST also change whenever any
+// (transitive) dependency changes - otherwise the importer keeps the same URL
+// while its content differs, and because /js/* is served `immutable` for a
+// year, CDN / browser / service-worker keep serving the stale importer that
+// still points at the OLD dependency. That is how a fix to levels.js once
+// never reached players: main.js was unchanged, kept its hash, and kept
+// importing the old levels.js. Hash = own content + deps' hashes (Merkle).
+const IMPORT_RE = /(?:from\s*['"]|import\s*\(\s*['"])(\.\.?\/[^'"?]+\.js)['"]/g;
+const jsDeps = new Map();
+for (const file of jsFiles) {
+    const deps = new Set();
+    for (const m of minifiedContent.get(file).matchAll(IMPORT_RE)) {
+        const dep = path.resolve(path.dirname(file), m[1]);
+        if (dep !== file && minifiedContent.has(dep)) deps.add(dep);
+    }
+    jsDeps.set(file, [...deps].sort());
+}
+const deepHashMemo = new Map();
+function deepHash(file, stack = new Set()) {
+    if (deepHashMemo.has(file)) return deepHashMemo.get(file);
+    stack.add(file);
+    let acc = minifiedContent.get(file);
+    for (const dep of jsDeps.get(file)) {
+        if (stack.has(dep)) continue; // import cycle: stop, own content already counted
+        acc += '\n' + path.basename(dep) + ':' + deepHash(dep, stack);
+    }
+    stack.delete(file);
+    const h = hashContent(acc);
+    deepHashMemo.set(file, h);
+    return h;
+}
+for (const file of jsFiles) {
+    hashMap.set(path.basename(file), deepHash(file));
 }
 
 let totalRaw = 0, totalMin = 0;
