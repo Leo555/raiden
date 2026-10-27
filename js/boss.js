@@ -103,6 +103,10 @@ export class Boss {
         this.attackTimer = 0;
         this.y = -120;
         this.x = GAME_WIDTH / 2 - this.width / 2;
+        // Field width can differ per game (desktop wide field): re-center the
+        // movement target too, otherwise the boss would drift toward the
+        // constructor-time x of a 540 field.
+        this.targetX = this.x;
         this.shakeAmount = 0;
         this.patternCount = 0;
         this.spiralOffset = 0;

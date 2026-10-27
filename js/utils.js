@@ -1,7 +1,48 @@
 // utils.js - Utility functions and constants
 
-export const GAME_WIDTH = 540;
+// Logical playfield size. The height is fixed; the width is a *live binding*
+// so every module that imports GAME_WIDTH sees the current value each time
+// it reads it. On desktop the width follows the window's aspect ratio (see
+// Game._syncFieldWidth in main.js); everywhere else it stays BASE_WIDTH.
+export const BASE_WIDTH = 540;
+export const MAX_WIDTH = 1920;
+export let GAME_WIDTH = BASE_WIDTH;
 export const GAME_HEIGHT = 960;
+
+export function setGameWidth(w) {
+    GAME_WIDTH = w;
+}
+
+/**
+ * True unless this is a touch-first device (phone / tablet), i.e. whose
+ * primary pointer is coarse AND cannot hover. Deliberately a *negative* test:
+ * desktop browsers, embedded IDE browsers and hybrid laptops report all sorts
+ * of hover / pointer combinations, and requiring "hover + fine" wrongly
+ * excluded some of them. Shared by the wide-field layout and the 2-player
+ * menu entry so the two can never disagree.
+ */
+export function isDesktopPointer() {
+    if (typeof window === 'undefined' || !window.matchMedia) return true;
+    return !window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}
+
+/**
+ * How many 540-wide "lanes" of enemies a wide field gets. Wave layouts were
+ * authored for a 540 field; on wider fields each wave is replicated into this
+ * many scaled copies so the extra width is populated without cramming every
+ * enemy into the middle.
+ */
+export function getLaneCount() {
+    return Math.max(1, Math.round(GAME_WIDTH / 720));
+}
+
+/**
+ * Movement speed multiplier for a wide field: a ship that needs ~2s to cross
+ * 540px should not need ~6s to cross 1700px. Grows at 40% of the width ratio.
+ */
+export function getSpeedScale() {
+    return 1 + (GAME_WIDTH / BASE_WIDTH - 1) * 0.4;
+}
 
 export function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));

@@ -1,5 +1,24 @@
 // input.js - Input handling (keyboard, mouse, touch)
 
+// Key bindings for the local 2-player (shared keyboard) mode.
+// Single-player keeps the legacy behaviour (WASD *and* arrows both work,
+// plus mouse / touch), so it does not use these tables.
+export const CONTROLS_P1 = {
+    left: ['KeyA'],
+    right: ['KeyD'],
+    up: ['KeyW'],
+    down: ['KeyS'],
+    bomb: ['Space']
+};
+
+export const CONTROLS_P2 = {
+    left: ['ArrowLeft'],
+    right: ['ArrowRight'],
+    up: ['ArrowUp'],
+    down: ['ArrowDown'],
+    bomb: ['Enter', 'NumpadEnter', 'Numpad0']
+};
+
 export class InputManager {
     constructor(canvas) {
         this.canvas = canvas;
@@ -31,8 +50,12 @@ export class InputManager {
         this.canvas.addEventListener('keydown', handleKeyDown);
         this.canvas.addEventListener('keyup', handleKeyUp);
 
-        // Mouse
-        this.canvas.addEventListener('mousemove', (e) => {
+        // Mouse. move/up are bound on `window` (not the canvas) so the ship
+        // keeps following the pointer even outside the canvas (e.g. over the
+        // letterbox bars), and a button released outside the canvas is not
+        // missed (which used to leave the ship "stuck" following the mouse).
+        // Coordinates are mapped into canvas space and clamped by the player.
+        window.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
             const scaleX = this.canvas.width / rect.width;
             const scaleY = this.canvas.height / rect.height;
@@ -44,7 +67,7 @@ export class InputManager {
             this.mouse.down = true;
             this.usingMouse = true;
         });
-        this.canvas.addEventListener('mouseup', () => {
+        window.addEventListener('mouseup', () => {
             this.mouse.down = false;
         });
 
@@ -105,5 +128,19 @@ export class InputManager {
 
     clearKey(code) {
         this.keys[code] = false;
+    }
+
+    // True if any of the given key codes is currently held.
+    anyDown(codes) {
+        for (let i = 0; i < codes.length; i++) {
+            if (this.keys[codes[i]]) return true;
+        }
+        return false;
+    }
+
+    clearKeys(codes) {
+        for (let i = 0; i < codes.length; i++) {
+            this.keys[codes[i]] = false;
+        }
     }
 }

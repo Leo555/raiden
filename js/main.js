@@ -1,7 +1,10 @@
 // main.js - Game entry point and main loop (Enhanced)
 
-import { GAME_WIDTH, GAME_HEIGHT } from './utils.js';
-import { InputManager } from './input.js';
+import {
+    GAME_WIDTH, GAME_HEIGHT, BASE_WIDTH, MAX_WIDTH,
+    setGameWidth, isDesktopPointer, clamp
+} from './utils.js';
+import { InputManager, CONTROLS_P1, CONTROLS_P2 } from './input.js';
 import { AudioManager } from './audio.js';
 import { Background } from './background.js';
 import { ParticleSystem } from './particles.js';
@@ -21,6 +24,41 @@ import { AchievementSystem } from './achievements.js';
 // critical path. Players who never tap "Challenge Mode" never pay
 // the parse/eval cost.
 
+// Dev only: a plain static server (npm run dev) serves index.html as-is, where
+// the inline <style> still holds the build-time placeholder, so NO CSS would
+// load (white page, canvas stuck top-left). Production builds replace the
+// placeholder, so this is a no-op there.
+(function ensureDevStyles() {
+    const inline = document.querySelector('head style');
+    if (inline && inline.textContent.includes('__INLINE_CSS__')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '/css/style.css';
+        document.head.appendChild(link);
+    }
+})();
+
+// Local 2-player co-op presets (shared keyboard). Fixed ship colours replace
+// the skin in 2P so the two pilots are always distinguishable.
+const TWO_PLAYER_PRESETS = [
+    {
+        controls: CONTROLS_P1,
+        useMouseTouch: false,
+        palette: { color: '#2288ff', secondaryColor: '#55aaff' },
+        label: 'P1',
+        bulletColor: null,         // keep the default blue bullets
+        spawnFraction: 0.3
+    },
+    {
+        controls: CONTROLS_P2,
+        useMouseTouch: false,
+        palette: { color: '#ff7722', secondaryColor: '#ffaa44' },
+        label: 'P2',
+        bulletColor: '#ffaa55',    // orange bullets
+        spawnFraction: 0.7
+    }
+];
+
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
@@ -30,6 +68,10 @@ class Game {
         // displays. Both are pure wins for a pixel-art-style game.
         this.ctx = this.canvas.getContext('2d', { alpha: false });
         this.ctx.imageSmoothingEnabled = false;
+        // Desktop: the logical field width follows the window's aspect ratio
+        // so the game fills the whole screen. Must be decided before any
+        // system that sizes itself from GAME_WIDTH (e.g. Background) is built.
+        setGameWidth(this._computeFieldWidth());
         this.canvas.width = GAME_WIDTH;
         this.canvas.height = GAME_HEIGHT;
 
@@ -56,6 +98,19 @@ class Game {
         this.player = new Player(this.bullets, this.particles, this.audio, this.input);
         this.player.initWeaponSystem();
         this.player.initSkinSystem(); // NEW: Initialize skin system
+        // Second pilot for local co-op. Only joins the match (this.players)
+        // when "2 PLAYERS" is chosen; it never needs a skin system because
+        // 2P uses fixed palettes.
+        this.player2 = new Player(this.bullets, this.particles, this.audio, this.input);
+        this.player2.initWeaponSystem();
+        this.twoPlayer = false;
+        this.players = [this.player];
+        // Enemy/boss aiming: they take a single target point, so in 2P we
+        // alternate which living pilot is the target every few seconds.
+        this._aimIndex = 0;
+        this._aimTimer = 0;
+        this._aimX = 0;
+        this._aimY = 0;
         this.powerups = new PowerUpSystem(this.particles);
         this.enemySystem = new EnemySystem(this.bullets, this.particles, this.audio, this.powerups);
         this.boss = new Boss(this.bullets, this.particles, this.audio, this.powerups);
@@ -97,7 +152,7 @@ class Game {
 
         this._bindUIEvents();
         this._resizeCanvas();
-        window.addEventListener('resize', () => this._resizeCanvas());
+        window.addEventListener('resize', () => this._onWindowResize());
 
         // Auto-focus canvas for keyboard input
         this.canvas.focus();
@@ -152,6 +207,8 @@ class Game {
                 }
                 if (this.ui.isStartButtonClicked(x, y)) {
                     this._startGame(false);
+                } else if (this.ui.isTwoPlayerButtonClicked(x, y)) {
+                    this._startGame(false, true);
                 } else if (this.ui.isChallengeButtonClicked(x, y)) {
                     this.state = 'challenge_select';
                     // Warm up the challenge module while the user is
@@ -174,9 +231,11 @@ class Game {
                 }
             } else if (this.state === 'gameover') {
                 if (this.ui.isRestartButtonClicked(x, y)) {
-                    this._startGame(false);
+                    // Keep the current mode: 2P restarts as 2P
+                    this._startGame(false, this.twoPlayer);
                 } else if (this.ui.isMenuButtonClicked(x, y)) {
                     this.state = 'menu';
+                    this._syncFieldWidth(); // window may have been resized during the run
                     this.audio.playMenuMusic();
                 }
             }
@@ -204,6 +263,12 @@ class Game {
                 }
             }
 
+            // Press 2 on the menu to start local co-op (desktop only)
+            if ((e.code === 'Digit2' || e.code === 'Numpad2') && this.state === 'menu' && this.ui.twoPlayerAvailable) {
+                this.audio.init();
+                this.audio.resume();
+                this._startGame(false, true);
+            }
             // NEW: Keyboard shortcuts for Achievement & Skin UI
             if (e.code === 'KeyA' && this.state === 'paused') {
                 // A key: Open achievement progress (in pause menu)
@@ -225,9 +290,67 @@ class Game {
         });
     }
 
-    _startGame(endless) {
+    /**
+     * Switch between 1P and local 2P: pick the active roster, apply the
+     * control / look presets, and tell the collision system who is playing.
+     * Must run before player.reset() so spawn positions are correct.
+     */
+    _setupPlayers(twoPlayer) {
+        this.twoPlayer = !!twoPlayer;
+        this.players = this.twoPlayer ? [this.player, this.player2] : [this.player];
+        if (this.twoPlayer) {
+            this.player.configure(TWO_PLAYER_PRESETS[0]);
+            this.player2.configure(TWO_PLAYER_PRESETS[1]);
+        } else {
+            this.player.configure(); // legacy: WASD+arrows+mouse/touch, skin colours
+        }
+        this._aimIndex = 0;
+        this._aimTimer = 0;
+        if (this.collision) this.collision.setPlayers(this.players);
+    }
+
+    _allPlayersDown() {
+        for (let i = 0; i < this.players.length; i++) {
+            if (!this.players[i].isOut()) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Pick the point enemies / bosses aim at. With one pilot this is just
+     * that ship. With two living pilots the target alternates every 2-3.5s;
+     * if only one is alive (respawning pilots do not count) it is targeted.
+     */
+    _updateAim(dt) {
+        const ps = this.players;
+        let target = ps[0];
+        if (ps.length > 1) {
+            const a = ps[0], b = ps[1];
+            if (a.active && b.active) {
+                this._aimTimer -= dt;
+                if (this._aimTimer <= 0) {
+                    this._aimIndex ^= 1;
+                    this._aimTimer = 2 + Math.random() * 1.5;
+                }
+                target = this._aimIndex ? b : a;
+            } else if (a.active) {
+                target = a;
+            } else if (b.active) {
+                target = b;
+            } else {
+                target = this._aimIndex ? b : a;
+            }
+        }
+        this._aimX = target.x + target.width / 2;
+        this._aimY = target.y + target.height / 2;
+    }
+
+    _startGame(endless, twoPlayer = false) {
+        // New run: adopt the current window's field width before anything spawns.
+        this._syncFieldWidth();
         this.state = 'playing';
-        this.player.reset();
+        this._setupPlayers(twoPlayer && !endless);
+        for (const p of this.players) p.reset();
         this.enemySystem.clear();
         this.bullets.clearAll();
         this.powerups.clear();
@@ -258,25 +381,31 @@ class Game {
     _handleAchievementReward(reward) {
         if (!reward) return;
 
+        // Rewards go to the first pilot who is still in the fight (in 1P: the player).
+        let target = this.player;
+        for (const p of this.players) {
+            if (p.active || p.respawning) { target = p; break; }
+        }
+
         switch (reward.type) {
             case 'score':
-                this.player.score += reward.value;
+                target.score += reward.value;
                 break;
             case 'bomb':
-                this.player.bombs += reward.value;
+                target.bombs += reward.value;
                 break;
             case 'life':
-                this.player.lives += reward.value;
+                target.lives += reward.value;
                 break;
             case 'shield':
-                this.player.shield = Math.min(
-                    this.player.shield + reward.value,
-                    this.player.maxShield || 100
+                target.shield = Math.min(
+                    target.shield + reward.value,
+                    target.maxShield || 100
                 );
                 break;
             case 'weapon_upgrade':
-                if (this.player.weaponLevel < this.player.maxWeaponLevel) {
-                    this.player.weaponLevel++;
+                if (target.weaponLevel < target.maxWeaponLevel) {
+                    target.weaponLevel++;
                 }
                 break;
         }
@@ -297,6 +426,7 @@ class Game {
         // The state may have changed while we were awaiting the
         // import (e.g. user backed out). Bail out gracefully.
         if (this.challengeMode !== mode) return;
+        this._syncFieldWidth();
         this.state = 'challenge_playing';
 
         if (mode === 'time_attack') {
@@ -311,6 +441,8 @@ class Game {
             this.challenge.start();
         }
 
+        // Challenge modes are single-player: switch back from any 2P setup.
+        this._setupPlayers(false);
         this.player.reset();
         this.enemySystem.clear();
         this.bullets.clearAll();
@@ -334,6 +466,43 @@ class Game {
         }
 
         this.audio.startMusic();
+    }
+
+    /**
+     * Logical field width for the current window. Desktop pointers get a
+     * field as wide as the window's aspect ratio allows (so there are no
+     * side bars); phones / tablets keep the classic 540-wide portrait field.
+     */
+    _computeFieldWidth() {
+        if (!isDesktopPointer()) return BASE_WIDTH;
+        const ratio = window.innerWidth / Math.max(1, window.innerHeight);
+        return clamp(Math.round(GAME_HEIGHT * ratio), BASE_WIDTH, MAX_WIDTH);
+    }
+
+    /**
+     * Re-fit the field width to the window. Only safe BETWEEN games (menu /
+     * before a new run): changing it mid-run would shove ships, enemies and
+     * the boss around. Mid-run window resizes just rescale the canvas.
+     */
+    _syncFieldWidth() {
+        const w = this._computeFieldWidth();
+        if (w !== GAME_WIDTH) {
+            setGameWidth(w);
+            // Assigning width also clears the canvas and resets context state.
+            this.canvas.width = w;
+            this.ctx.imageSmoothingEnabled = false;
+            // Star / cloud fields are sized from the width at construction.
+            this.background = new Background();
+        }
+        this._resizeCanvas();
+    }
+
+    _onWindowResize() {
+        if (this.state === 'menu' || this.state === 'challenge_select') {
+            this._syncFieldWidth();
+        } else {
+            this._resizeCanvas();
+        }
     }
 
     _resizeCanvas() {
@@ -471,6 +640,8 @@ class Game {
             this.particles.update(dt);
             this.floatingText.update(dt);
             if (this.levelCompleteTimer <= 0) {
+                // Co-op: a fallen pilot rejoins with 1 life when the next sector starts
+                for (const p of this.players) p.revive();
                 const nextLevel = this.levelManager.currentLevel + 1;
                 if (nextLevel >= this.levelManager.getTotalLevels()) {
                     // Game completed - start endless
@@ -493,9 +664,10 @@ class Game {
         // Main game update
         this.background.update(dt);
         this.ui.update(dt);
-        this.player.update(dt, this.enemySystem.enemies);
-        const pcx = this.player.x + this.player.width / 2;
-        const pcy = this.player.y + this.player.height / 2;
+        for (const p of this.players) p.update(dt, this.enemySystem.enemies);
+        this._updateAim(dt);
+        const pcx = this._aimX;
+        const pcy = this._aimY;
         this.enemySystem.update(dt, pcx, pcy);
         this.boss.update(dt, pcx, pcy, this.enemySystem);
         this.bullets.update(dt, this.enemySystem.enemies, pcx, pcy);
@@ -533,11 +705,12 @@ class Game {
             }
         }
 
-        // Check game over
-        if (this.player.lives <= 0 && !this.player.active && !this.player.respawning) {
+        // Check game over (2P: only when BOTH pilots are out)
+        if (this._allPlayersDown()) {
             this.state = 'gameover';
             this.audio.stopMusic();
-            this.ui.saveHighScore(this.player.score);
+            // 2P runs are not ranked on the solo high-score board
+            if (!this.twoPlayer) this.ui.saveHighScore(this.player.score);
         }
 
         // Check level complete
@@ -573,9 +746,10 @@ class Game {
         // Update game systems
         this.background.update(dt);
         this.levelManager.update(dt);
-        this.player.update(dt, this.enemySystem.enemies);
-        const pcx = this.player.x + this.player.width / 2;
-        const pcy = this.player.y + this.player.height / 2;
+        for (const p of this.players) p.update(dt, this.enemySystem.enemies);
+        this._updateAim(dt);
+        const pcx = this._aimX;
+        const pcy = this._aimY;
         this.enemySystem.update(dt, pcx, pcy);
         this.boss.update(dt, pcx, pcy, this.enemySystem);
         this.bullets.update(dt, this.enemySystem.enemies, pcx, pcy);
@@ -608,7 +782,7 @@ class Game {
         }
 
         // Check game over
-        if (this.player.lives <= 0 && !this.player.active && !this.player.respawning) {
+        if (this._allPlayersDown()) {
             this._endChallenge();
         }
     }
@@ -716,7 +890,7 @@ class Game {
 
         // Game elements
         this.powerups.draw(ctx);
-        this.player.draw(ctx);
+        for (const p of this.players) p.draw(ctx);
         this.enemySystem.draw(ctx);
         this.boss.draw(ctx);
         this.bullets.draw(ctx);
@@ -740,7 +914,11 @@ class Game {
         this.levelManager.drawTransition(ctx);
 
         // HUD
-        this.ui.drawHUD(ctx, this.player, this.levelManager, this.powerups);
+        if (this.twoPlayer) {
+            this.ui.drawHUD2P(ctx, this.players, this.levelManager);
+        } else {
+            this.ui.drawHUD(ctx, this.player, this.levelManager, this.powerups);
+        }
         this.ui.drawNotifications(ctx);
         this.ui.drawFlash(ctx);
 
@@ -748,7 +926,12 @@ class Game {
         if (this.state === 'paused') {
             this.ui.drawPaused(ctx);
         } else if (this.state === 'gameover') {
-            this.ui.drawGameOver(ctx, this.player.score);
+            if (this.twoPlayer) {
+                const team = this.players.reduce((sum, p) => sum + p.score, 0);
+                this.ui.drawGameOver(ctx, team, this.players);
+            } else {
+                this.ui.drawGameOver(ctx, this.player.score);
+            }
         } else if (this.state === 'levelcomplete') {
             this.ui.drawLevelComplete(ctx, this.levelManager.currentLevel);
         }

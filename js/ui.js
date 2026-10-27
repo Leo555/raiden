@@ -1,6 +1,6 @@
 // ui.js - UI/HUD system
 
-import { GAME_WIDTH, GAME_HEIGHT, drawRoundedRect } from './utils.js';
+import { GAME_WIDTH, GAME_HEIGHT, drawRoundedRect, isDesktopPointer } from './utils.js';
 
 export class UISystem {
     constructor() {
@@ -10,6 +10,27 @@ export class UISystem {
         this.flashColor = '#ffffff';
         this.notifications = [];
         this.highScores = this._loadHighScores();
+
+        // 2-player mode shares one keyboard, so it is a desktop feature.
+        // Hide the menu entry on touch-only devices (phones / tablets).
+        this.twoPlayerAvailable = isDesktopPointer();
+    }
+
+    /**
+     * Vertical layout of the main-menu buttons. Shared by drawing and click
+     * hit-testing so the two can never drift apart.
+     */
+    _menuLayout() {
+        const startY = GAME_HEIGHT - 480;
+        let next = startY + 55;
+        const layout = { startY, twoPlayerY: null };
+        if (this.twoPlayerAvailable) {
+            layout.twoPlayerY = next;
+            next += 55;
+        }
+        layout.challengeY = next;
+        layout.endlessY = next + 55;
+        return layout;
     }
 
     shake(intensity = 5) {
@@ -129,6 +150,91 @@ export class UISystem {
         ctx.restore();
     }
 
+    /**
+     * HUD for 2-player mode. P1 stats sit bottom-left, P2 stats bottom-right
+     * (right aligned); team total + level name sit top-left, clear of the
+     * boss HP bar (top-center) and the FPS counter (top-right).
+     */
+    drawHUD2P(ctx, players, levelManager) {
+        ctx.save();
+
+        const teamScore = players.reduce((sum, p) => sum + p.score, 0);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 13px monospace';
+        ctx.fillText(`TEAM ${teamScore.toString().padStart(8, '0')}`, 10, 18);
+        ctx.fillStyle = '#aaaaff';
+        ctx.font = '11px monospace';
+        ctx.fillText(levelManager.getLevelName(), 10, 34);
+
+        const accent = ['#66aaff', '#ffaa55'];
+        for (let i = 0; i < players.length; i++) {
+            this._drawPlayerPanel(ctx, players[i], i === 0 ? 10 : GAME_WIDTH - 10, i === 0 ? 'left' : 'right', accent[i], i + 1);
+        }
+
+        ctx.restore();
+    }
+
+    // One player's stat stack (bottom up). Index 0 = bottom-most line.
+    _drawPlayerPanel(ctx, p, x, align, color, num) {
+        const lineH = 18;
+        const yAt = (idx) => GAME_HEIGHT - 15 - idx * lineH;
+        ctx.textAlign = align;
+
+        // 0. Score
+        ctx.fillStyle = color;
+        ctx.font = 'bold 13px monospace';
+        ctx.fillText(`P${num} ${p.score.toString().padStart(8, '0')}`, x, yAt(0));
+
+        // Fallen pilot: show a status instead of the stat stack
+        if (p.isOut()) {
+            ctx.fillStyle = '#ff5555';
+            ctx.font = 'bold 12px monospace';
+            ctx.fillText('DOWN', x, yAt(1));
+            return;
+        }
+
+        // 1. Lives
+        ctx.fillStyle = '#44ff44';
+        ctx.font = '12px monospace';
+        let livesText = 'LIVES: ';
+        for (let i = 0; i < p.lives; i++) livesText += '\u2665 ';
+        ctx.fillText(livesText, x, yAt(1));
+
+        // 2. Shield
+        ctx.fillStyle = '#4488ff';
+        let shieldText = 'SHIELD: ';
+        for (let i = 0; i < p.maxShield; i++) shieldText += i < p.shield ? '\u25a0' : '\u25a1';
+        ctx.fillText(shieldText, x, yAt(2));
+
+        // 3. Bombs
+        ctx.fillStyle = '#ffaa00';
+        let bombText = 'BOMB: ';
+        for (let i = 0; i < p.bombs; i++) bombText += '\u25cf ';
+        ctx.fillText(bombText, x, yAt(3));
+
+        // 4. Weapon level
+        ctx.fillStyle = '#ff8844';
+        ctx.fillText(`WEAPON: LV${p.weaponLevel}`, x, yAt(4));
+
+        // 5+ Active buffs
+        let idx = 5;
+        ctx.font = '10px monospace';
+        if (p.hasTempMissile) {
+            ctx.fillStyle = '#ff8800';
+            ctx.fillText('MISSILE ACTIVE', x, yAt(idx++));
+        }
+        if (p.rapidFireDuration > 0) {
+            ctx.fillStyle = '#ffff00';
+            ctx.fillText(`RAPID FIRE: ${Math.ceil(p.rapidFireDuration / 60)}S`, x, yAt(idx++));
+        }
+        if (p.superShieldTimer > 0) {
+            ctx.fillStyle = '#ffee44';
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText(`SUPER SHIELD: ${Math.ceil(p.superShieldTimer / 60)}S`, x, yAt(idx++));
+        }
+    }
+
     drawFlash(ctx) {
         if (this.flashAlpha > 0) {
             ctx.fillStyle = this.flashColor;
@@ -177,16 +283,23 @@ export class UISystem {
             'Mouse / Touch - Move (hold click)',
             'SPACE - Bomb (clear screen)',
             'P - Pause',
-            '',
-            'Collect P power-ups to upgrade your weapon!',
             ''
         ];
+        if (this.twoPlayerAvailable) {
+            instructions.push('2 PLAYERS:  P1 WASD + SPACE (bomb)');
+            instructions.push('            P2 ARROWS + ENTER (bomb)');
+        } else {
+            instructions.push('');
+        }
+        instructions.push('Collect P power-ups to upgrade your weapon!');
         instructions.forEach((line, i) => {
             ctx.fillText(line, GAME_WIDTH / 2, 280 + i * 22);
         });
 
+        const layout = this._menuLayout();
+
         // Start button
-        const btnY = GAME_HEIGHT - 480;
+        const btnY = layout.startY;
         ctx.fillStyle = '#2266cc';
         drawRoundedRect(ctx, GAME_WIDTH / 2 - 80, btnY, 160, 40, 8);
         ctx.fill();
@@ -198,8 +311,26 @@ export class UISystem {
         ctx.font = 'bold 16px monospace';
         ctx.fillText('START GAME', GAME_WIDTH / 2, btnY + 25);
 
+        // 2-player co-op button (desktop only)
+        if (layout.twoPlayerY !== null) {
+            const y2 = layout.twoPlayerY;
+            ctx.fillStyle = '#1f4d2e';
+            drawRoundedRect(ctx, GAME_WIDTH / 2 - 80, y2, 160, 40, 8);
+            ctx.fill();
+            ctx.strokeStyle = '#44cc77';
+            ctx.lineWidth = 2;
+            drawRoundedRect(ctx, GAME_WIDTH / 2 - 80, y2, 160, 40, 8);
+            ctx.stroke();
+            ctx.fillStyle = '#88ffaa';
+            ctx.font = 'bold 15px monospace';
+            ctx.fillText('2 PLAYERS', GAME_WIDTH / 2, y2 + 20);
+            ctx.fillStyle = '#66aa80';
+            ctx.font = '9px monospace';
+            ctx.fillText('CO-OP  [press 2]', GAME_WIDTH / 2, y2 + 33);
+        }
+
         // Challenge mode button
-        const chalBtnY = btnY + 55;
+        const chalBtnY = layout.challengeY;
         ctx.fillStyle = '#553300';
         drawRoundedRect(ctx, GAME_WIDTH / 2 - 80, chalBtnY, 160, 40, 8);
         ctx.fill();
@@ -212,7 +343,7 @@ export class UISystem {
         ctx.fillText('CHALLENGE', GAME_WIDTH / 2, chalBtnY + 25);
 
         // Endless mode button
-        const endBtnY = chalBtnY + 55;
+        const endBtnY = layout.endlessY;
         ctx.fillStyle = '#333';
         drawRoundedRect(ctx, GAME_WIDTH / 2 - 80, endBtnY, 160, 35, 8);
         ctx.fill();
@@ -240,7 +371,7 @@ export class UISystem {
         ctx.textAlign = 'left';
     }
 
-    drawGameOver(ctx, score) {
+    drawGameOver(ctx, score, players = null) {
         ctx.fillStyle = 'rgba(0,0,0,0.8)';
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
@@ -249,15 +380,28 @@ export class UISystem {
         ctx.textAlign = 'center';
         ctx.fillText('GAME OVER', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60);
 
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '18px monospace';
-        ctx.fillText(`FINAL SCORE: ${score.toString().padStart(8, '0')}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 10);
+        if (players && players.length > 1) {
+            // 2-player: per-pilot breakdown + team total (not ranked on the solo board)
+            const colors = ['#66aaff', '#ffaa55'];
+            ctx.font = '16px monospace';
+            players.forEach((p, i) => {
+                ctx.fillStyle = colors[i];
+                ctx.fillText(`P${i + 1}: ${p.score.toString().padStart(8, '0')}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30 + i * 22);
+            });
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 18px monospace';
+            ctx.fillText(`TEAM SCORE: ${score.toString().padStart(8, '0')}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 25);
+        } else {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '18px monospace';
+            ctx.fillText(`FINAL SCORE: ${score.toString().padStart(8, '0')}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 10);
 
-        // Check if high score
-        if (this.highScores.length === 0 || score > this.highScores[this.highScores.length - 1]?.score || this.highScores.length < 10) {
-            ctx.fillStyle = '#ffcc00';
-            ctx.font = '14px monospace';
-            ctx.fillText('NEW HIGH SCORE!', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 25);
+            // Check if high score
+            if (this.highScores.length === 0 || score > this.highScores[this.highScores.length - 1]?.score || this.highScores.length < 10) {
+                ctx.fillStyle = '#ffcc00';
+                ctx.font = '14px monospace';
+                ctx.fillText('NEW HIGH SCORE!', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 25);
+            }
         }
 
         // Restart button
@@ -336,17 +480,23 @@ export class UISystem {
     }
 
     isStartButtonClicked(x, y) {
-        const btnY = GAME_HEIGHT - 480;
+        const btnY = this._menuLayout().startY;
+        return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 40;
+    }
+
+    isTwoPlayerButtonClicked(x, y) {
+        const btnY = this._menuLayout().twoPlayerY;
+        if (btnY === null) return false;
         return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 40;
     }
 
     isChallengeButtonClicked(x, y) {
-        const btnY = GAME_HEIGHT - 480 + 55;
+        const btnY = this._menuLayout().challengeY;
         return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 40;
     }
 
     isEndlessButtonClicked(x, y) {
-        const btnY = GAME_HEIGHT - 480 + 110;
+        const btnY = this._menuLayout().endlessY;
         return x >= GAME_WIDTH / 2 - 80 && x <= GAME_WIDTH / 2 + 80 && y >= btnY && y <= btnY + 35;
     }
 

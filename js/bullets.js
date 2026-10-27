@@ -40,6 +40,45 @@ class Bullet {
         this.homingStrength = 0;
         this.delayFrames = 0;
         this.originalSpeed = 0;
+        // Which Player fired this (player bullets only). Used by the
+        // collision system to credit kills to the right player in 2P mode.
+        this.owner = null;
+    }
+}
+
+/**
+ * Thin per-player facade over the shared BulletSystem. WeaponSystem and
+ * Player call the same fire* methods as before; this port just tags the
+ * freshly spawned bullet with its owner (and optionally tints the default
+ * bullet colour so two players' shots are easy to tell apart).
+ */
+export class OwnedBulletPort {
+    constructor(bulletSystem, owner) {
+        this.system = bulletSystem;
+        this.owner = owner;
+    }
+
+    _tagLast() {
+        const arr = this.system.playerBullets;
+        if (arr.length > 0) arr[arr.length - 1].owner = this.owner;
+    }
+
+    firePlayerBullet(x, y, vx, vy, damage = 1, type = 'normal', color = '#88ccff') {
+        if (type === 'normal' && color === '#88ccff' && this.owner.bulletColor) {
+            color = this.owner.bulletColor;
+        }
+        this.system.firePlayerBullet(x, y, vx, vy, damage, type, color);
+        this._tagLast();
+    }
+
+    fireMissile(x, y, target) {
+        this.system.fireMissile(x, y, target);
+        this._tagLast();
+    }
+
+    fireNuke(x, y) {
+        this.system.fireNuke(x, y);
+        this._tagLast();
     }
 }
 

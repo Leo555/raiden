@@ -1,6 +1,6 @@
 // background.js - Parallax scrolling background (Enhanced with combo speed)
 
-import { GAME_WIDTH, GAME_HEIGHT, randRange, randInt } from './utils.js';
+import { GAME_WIDTH, GAME_HEIGHT, BASE_WIDTH, randRange, randInt } from './utils.js';
 
 class Star {
     constructor(layer) {
@@ -35,7 +35,9 @@ class CloudLayer {
         this.layer = layer;
         this.speed = (layer + 1) * 0.3;
         this.clouds = [];
-        for (let i = 0; i < 3 + layer; i++) {
+        // Cloud count scales with width too (3 + layer per 540px of field)
+        const cloudCount = Math.round((3 + layer) * (GAME_WIDTH / BASE_WIDTH));
+        for (let i = 0; i < cloudCount; i++) {
             this.clouds.push({
                 x: randRange(0, GAME_WIDTH),
                 y: randRange(0, GAME_HEIGHT),
@@ -76,9 +78,11 @@ export class Background {
         this.speedMultiplier = 1.0;
         this.targetSpeedMultiplier = 1.0;
 
-        // Create 3 layers of stars
+        // Create 3 layers of stars. Counts scale with the field width so a
+        // wide desktop field is as densely starred as the classic 540 one.
+        const widthScale = GAME_WIDTH / BASE_WIDTH;
         for (let layer = 0; layer < 3; layer++) {
-            const count = 20 + layer * 15;
+            const count = Math.round((20 + layer * 15) * widthScale);
             for (let i = 0; i < count; i++) {
                 this.stars.push(new Star(layer));
             }

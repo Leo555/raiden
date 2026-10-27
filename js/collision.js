@@ -5,7 +5,10 @@ import { SuicideEnemy } from './enemies.js';
 
 export class CollisionSystem {
     constructor(player, bullets, enemySystem, boss, powerups, particles, combo, floatingText, audio, challenge = null, ui = null) {
+        // `player` is the primary (P1) ship; in 2P mode main.js calls
+        // setPlayers([p1, p2]) so every per-player check runs for both.
         this.player = player;
+        this.players = [player];
         this.bullets = bullets;
         this.enemySystem = enemySystem;
         this.boss = boss;
@@ -26,21 +29,45 @@ export class CollisionSystem {
         this.grazeConsecutiveTimer = 0;
     }
 
+    setPlayers(players) {
+        this.players = players;
+        this.player = players[0];
+    }
+
+    /** Who gets credit for a kill made by `bullet` (falls back to P1). */
+    _ownerOf(bullet) {
+        return (bullet && bullet.owner) || this.players[0];
+    }
+
     update(dt) {
-        if (!this.player.active) return;
+        const players = this.players;
+
+        // Nothing to do once every ship is down (same as the old single-player guard).
+        let anyActive = false;
+        for (let i = 0; i < players.length; i++) {
+            if (players[i].active) { anyActive = true; break; }
+        }
+        if (!anyActive) return;
 
         // Check if any nuke bullets have reached the upper third of the screen
         // and auto-detonate (so a nuke is never wasted on an empty screen).
         this._checkNukeAutoDetonate();
 
+        // Player-independent checks run once...
         this._playerBulletsVsEnemies();
         this._playerBulletsVsBoss();
-        this._enemyBulletsVsPlayer();
-        this._grazeDetection();
-        this._enemiesVsPlayer();
-        this._checkSuicideExplosions();
-        this._playerVsPowerups();
-        this._playerVsBomb();
+
+        // ...player-dependent checks run once per living ship.
+        for (let i = 0; i < players.length; i++) {
+            const p = players[i];
+            if (!p.active) continue;
+            this._enemyBulletsVsPlayer(p);
+            this._grazeDetection(p);
+            this._enemiesVsPlayer(p);
+            this._checkSuicideExplosions(p);
+            this._playerVsPowerups(p);
+            this._playerVsBomb(p);
+        }
 
         // Update graze consecutive timer
         if (this.grazeConsecutiveTimer > 0) {
@@ -102,7 +129,7 @@ export class CollisionSystem {
                         if (this.combo) {
                             finalScore = this.combo.addKill(e.score);
                         }
-                        this.player.score += finalScore;
+                        this._ownerOf(b).score += finalScore;
 
                         // Notify challenge mode
                         if (this.challenge && this.challenge.isActive) {
@@ -190,6 +217,7 @@ export class CollisionSystem {
     _handleNukeAOE(bullet) {
         const bx = bullet.x;
         const by = bullet.y;
+        const nukeOwner = this._ownerOf(bullet);
         const enemyDamage = 999;     // one-shot any normal enemy
         const bossDamage = 50;        // huge chunk of boss HP
 
@@ -260,7 +288,7 @@ export class CollisionSystem {
             if (destroyed) {
                 let finalScore = enemy.score;
                 if (this.combo) finalScore = this.combo.addKill(enemy.score);
-                this.player.score += finalScore;
+                nukeOwner.score += finalScore;
                 if (this.challenge && this.challenge.isActive) {
                     this.challenge.onEnemyKill(finalScore);
                 }
@@ -338,7 +366,7 @@ export class CollisionSystem {
                     if (this.combo) {
                         bossScore = this.combo.addKill(5000);
                     }
-                    this.player.score += bossScore;
+                    this._ownerOf(b).score += bossScore;
 
                     // Notify challenge mode
                     if (this.challenge && this.challenge.isActive) {
@@ -363,15 +391,15 @@ export class CollisionSystem {
         }
     }
 
-    _enemyBulletsVsPlayer() {
-        if (this.player.invincible || !this.player.active) return;
+    _enemyBulletsVsPlayer(player) {
+        if (player.invincible || !player.active) return;
 
         const bullets = this.bullets.enemyBullets;
         // Inline player AABB to avoid two object literals per bullet.
-        const pL = this.player.x + 8;
-        const pR = this.player.x + this.player.width - 8;
-        const pT = this.player.y + 8;
-        const pB = this.player.y + this.player.height - 8;
+        const pL = player.x + 8;
+        const pR = player.x + player.width - 8;
+        const pT = player.y + 8;
+        const pB = player.y + player.height - 8;
 
         for (let i = bullets.length - 1; i >= 0; i--) {
             const b = bullets[i];
@@ -381,7 +409,7 @@ export class CollisionSystem {
             const bB = b.y + b.radius;
 
             if (bL < pR && bR > pL && bT < pB && bB > pT) {
-                this.player.hit();
+                player.hit();
                 // Swap-pop: O(1) removal, order doesn't matter.
                 const last = bullets.length - 1;
                 if (i !== last) bullets[i] = bullets[last];
@@ -400,12 +428,12 @@ export class CollisionSystem {
     /**
      * Graze detection: check enemy bullets passing near but not hitting player.
      */
-    _grazeDetection() {
-        if (!this.player.active || this.player.invincible) return;
+    _grazeDetection(player) {
+        if (!player.active || player.invincible) return;
 
         const bullets = this.bullets.enemyBullets;
-        const playerCX = this.player.x + this.player.width / 2;
-        const playerCY = this.player.y + this.player.height / 2;
+        const playerCX = player.x + player.width / 2;
+        const playerCY = player.y + player.height / 2;
 
         // Use squared distances throughout to avoid Math.sqrt() per
         // bullet (this loop runs every frame on the full enemy bullet
@@ -422,7 +450,7 @@ export class CollisionSystem {
 
             if (distSq > inner * inner && distSq < outer * outer) {
                 this.grazedBullets.add(b);
-                this._triggerGraze(b.x, b.y, playerCX, playerCY);
+                this._triggerGraze(player, b.x, b.y, playerCX, playerCY);
             }
         }
 
@@ -440,7 +468,7 @@ export class CollisionSystem {
     /**
      * Trigger a graze event.
      */
-    _triggerGraze(bx, by, px, py) {
+    _triggerGraze(player, bx, by, px, py) {
         // Consecutive graze bonus
         this.grazeConsecutive++;
         this.grazeConsecutiveTimer = 1.0; // 1 second window for consecutive
@@ -448,7 +476,7 @@ export class CollisionSystem {
         const bonus = Math.min(this.grazeConsecutive, 5); // Max 5x consecutive bonus
         const score = this.grazeBaseScore + (bonus - 1) * 10;
 
-        this.player.score += score;
+        player.score += score;
 
         // Notify combo system
         if (this.combo) {
@@ -493,12 +521,12 @@ export class CollisionSystem {
     /**
      * Check suicide enemy explosions (AOE damage).
      */
-    _checkSuicideExplosions() {
-        if (!this.player.active || this.player.invincible) return;
+    _checkSuicideExplosions(player) {
+        if (!player.active || player.invincible) return;
 
         const enemies = this.enemySystem.enemies;
-        const playerCX = this.player.x + this.player.width / 2;
-        const playerCY = this.player.y + this.player.height / 2;
+        const playerCX = player.x + player.width / 2;
+        const playerCY = player.y + player.height / 2;
 
         for (const enemy of enemies) {
             if (!enemy.active || !(enemy instanceof SuicideEnemy)) continue;
@@ -514,7 +542,7 @@ export class CollisionSystem {
 
             if (distSq <= r * r) {
                 // Player takes damage
-                this.player.hit();
+                player.hit();
 
                 // Create explosion effect
                 this.particles.explode(enemyCX, enemyCY, '#ff4444', 20);
@@ -534,21 +562,21 @@ export class CollisionSystem {
         }
     }
 
-    _enemiesVsPlayer() {
-        if (this.player.invincible || !this.player.active) return;
+    _enemiesVsPlayer(player) {
+        if (player.invincible || !player.active) return;
 
         const enemies = this.enemySystem.enemies;
         const playerRect = {
-            x: this.player.x + 4,
-            y: this.player.y + 4,
-            width: this.player.width - 8,
-            height: this.player.height - 8
+            x: player.x + 4,
+            y: player.y + 4,
+            width: player.width - 8,
+            height: player.height - 8
         };
 
         for (const e of enemies) {
             if (!e.active) continue;
             if (rectCollision(playerRect, { x: e.x, y: e.y, width: e.width, height: e.height })) {
-                this.player.hit();
+                player.hit();
                 this.enemySystem.damageEnemy(e, 5);
                 if (this.combo && this.combo.count > 0) {
                     this.combo._breakCombo();
@@ -566,7 +594,7 @@ export class CollisionSystem {
                 height: this.boss.height
             };
             if (rectCollision(playerRect, bossRect)) {
-                this.player.hit();
+                player.hit();
                 if (this.combo && this.combo.count > 0) {
                     this.combo._breakCombo();
                 }
@@ -574,26 +602,26 @@ export class CollisionSystem {
         }
     }
 
-    _playerVsPowerups() {
+    _playerVsPowerups(player) {
         const playerRect = {
-            x: this.player.x - 5,
-            y: this.player.y - 5,
-            width: this.player.width + 10,
-            height: this.player.height + 10
+            x: player.x - 5,
+            y: player.y - 5,
+            width: player.width + 10,
+            height: player.height + 10
         };
 
         for (let i = this.powerups.powerups.length - 1; i >= 0; i--) {
             const p = this.powerups.powerups[i];
             if (!p.active) continue;
             if (rectCollision(playerRect, { x: p.x, y: p.y, width: p.width, height: p.height })) {
-                this.powerups.collect(p, this.player);
+                this.powerups.collect(p, player);
                 break;
             }
         }
     }
 
-    _playerVsBomb() {
-        if (!this.player.bombActive) return;
+    _playerVsBomb(player) {
+        if (!player.bombActive) return;
 
         // Damage all enemies on screen
         const enemies = this.enemySystem.enemies;
@@ -605,9 +633,9 @@ export class CollisionSystem {
                     if (this.combo) {
                         score = this.combo.addKill(e.score);
                     }
-                    this.player.score += score;
+                    player.score += score;
                 } else {
-                    this.player.score += e.score;
+                    player.score += e.score;
                 }
             }
         }
@@ -622,6 +650,6 @@ export class CollisionSystem {
         // Clear grazed references
         this.grazedBullets.clear();
 
-        this.player.bombActive = false;
+        player.bombActive = false;
     }
 }

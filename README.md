@@ -41,9 +41,25 @@ No build step needed — Vercel serves the static files directly.
 - **Space** - Use bomb (clears screen)
 - **P** - Pause/Resume
 
+### 2-Player Co-op (desktop, shared keyboard)
+
+Choose **2 PLAYERS** on the menu (or press **2**). Both pilots fight the same
+enemies; each keeps their own score, lives, shield, bombs and weapon level.
+
+| | Move | Bomb |
+|---|---|---|
+| **P1** (blue) | W A S D | Space |
+| **P2** (orange) | Arrow Keys | Enter |
+
+- Enemies and bosses alternate targeting the two living pilots.
+- Game over only when **both** pilots are out; a fallen pilot rejoins with 1 life at the next sector.
+- Co-op runs are not saved to the solo high-score board.
+- Mouse / touch movement is disabled in co-op. The menu entry is hidden on touch-only devices.
+
 ## Features
 
 - 5 levels with increasing difficulty + endless mode
+- Local 2-player co-op (shared keyboard)
 - 3 unique boss fights with multi-phase attacks
 - Weapon upgrade system (5 levels)
 - Power-up items (weapon, bomb, shield, missile, coins, 1UP)

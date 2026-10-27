@@ -1,15 +1,27 @@
 // js/player.js - Player ship system with Weapon + Skin Integration
 
-import { GAME_WIDTH, GAME_HEIGHT, clamp } from './utils.js';
+import { GAME_WIDTH, GAME_HEIGHT, clamp, getSpeedScale } from './utils.js';
 import { WeaponSystem, WEAPON_TYPES } from './weapons.js';
 import { SkinSystem } from './skins.js';
+import { OwnedBulletPort } from './bullets.js';
 
 export class Player {
     constructor(bullets, particles, audio, input) {
-        this.bullets = bullets;
+        // Every player fires through its own port so bullets carry an
+        // `owner` (needed to credit kills in 2-player mode).
+        this.bullets = new OwnedBulletPort(bullets, this);
         this.particles = particles;
         this.audio = audio;
         this.input = input;
+
+        // ---- Multiplayer / control configuration (see configure()) ----
+        // controls === null -> legacy single-player scheme (WASD + arrows + Space)
+        this.controls = null;
+        this.useMouseTouch = true;   // follow mouse / touch (single-player only)
+        this.palette = null;         // {color, secondaryColor} override, else skin
+        this.label = null;           // "P1" / "P2" drawn above the ship
+        this.bulletColor = null;     // tint for the default bullet colour
+        this.spawnFraction = 0.5;    // horizontal spawn position (0..1)
 
         this.width = 32;
         this.height = 36;
@@ -70,8 +82,21 @@ export class Player {
         this.skinSystem = new SkinSystem();
     }
 
+    /**
+     * Apply a control / look preset. Call before reset() when the game mode
+     * (1P vs 2P) changes. Omitted fields fall back to single-player defaults.
+     */
+    configure(opts = {}) {
+        this.controls = opts.controls || null;
+        this.useMouseTouch = opts.useMouseTouch !== undefined ? opts.useMouseTouch : true;
+        this.palette = opts.palette || null;
+        this.label = opts.label || null;
+        this.bulletColor = opts.bulletColor || null;
+        this.spawnFraction = opts.spawnFraction !== undefined ? opts.spawnFraction : 0.5;
+    }
+
     reset() {
-        this.x = GAME_WIDTH / 2 - this.width / 2;
+        this.x = GAME_WIDTH * this.spawnFraction - this.width / 2;
         this.y = GAME_HEIGHT - 80;
         this.lives = 3;
         this.shield = 3;
@@ -90,6 +115,37 @@ export class Player {
         if (this.weaponSystem) {
             this.weaponSystem.reset();
         }
+    }
+
+    /** True when this player has no lives left and is not coming back. */
+    isOut() {
+        return this.lives <= 0 && !this.active && !this.respawning;
+    }
+
+    /**
+     * Bring a fallen player back (2P: called when the next level starts) with
+     * a single life, a full shield and at least one bomb. Score is kept.
+     */
+    revive() {
+        if (!this.isOut()) return;
+        this.lives = 1;
+        this.shield = this.maxShield;
+        this.bombs = Math.max(this.bombs, 1);
+        this.x = GAME_WIDTH * this.spawnFraction - this.width / 2;
+        this.y = GAME_HEIGHT - 80;
+        this.respawning = true;
+        this.respawnTimer = 60;
+    }
+
+    // ---- Per-player input helpers (legacy scheme when controls === null) ----
+    _isLeft() { return this.controls ? this.input.anyDown(this.controls.left) : this.input.isLeft(); }
+    _isRight() { return this.controls ? this.input.anyDown(this.controls.right) : this.input.isRight(); }
+    _isUp() { return this.controls ? this.input.anyDown(this.controls.up) : this.input.isUp(); }
+    _isDown() { return this.controls ? this.input.anyDown(this.controls.down) : this.input.isDown(); }
+    _isBomb() { return this.controls ? this.input.anyDown(this.controls.bomb) : this.input.isBomb(); }
+    _clearBombKeys() {
+        if (this.controls) this.input.clearKeys(this.controls.bomb);
+        else this.input.clearKey('Space');
     }
 
     update(dt, enemies) {
@@ -111,7 +167,7 @@ export class Player {
         let dx = 0, dy = 0;
         
         // Touch control (mobile): follow touch position
-        if (this.input.touch && this.input.touch.active) {
+        if (this.useMouseTouch && this.input.touch && this.input.touch.active) {
             const targetX = this.input.touch.x - this.width / 2;
             const targetY = this.input.touch.y - this.height / 2;
             const diffX = targetX - this.x;
@@ -123,7 +179,7 @@ export class Player {
             this.y += diffY * smooth;
         }
         // Mouse control (desktop): only when mouse button is pressed
-        else if (this.input.mouse.down) {
+        else if (this.useMouseTouch && this.input.mouse.down) {
             const targetX = this.input.mouse.x - this.width / 2;
             const targetY = this.input.mouse.y - this.height / 2;
             const diffX = targetX - this.x;
@@ -135,10 +191,10 @@ export class Player {
             this.y += diffY * smooth;
         } else {
             // Keyboard control
-            if (this.input.isLeft()) dx -= 1;
-            if (this.input.isRight()) dx += 1;
-            if (this.input.isUp()) dy -= 1;
-            if (this.input.isDown()) dy += 1;
+            if (this._isLeft()) dx -= 1;
+            if (this._isRight()) dx += 1;
+            if (this._isUp()) dy -= 1;
+            if (this._isDown()) dy += 1;
 
             // Normalize diagonal movement
             if (dx !== 0 && dy !== 0) {
@@ -146,7 +202,10 @@ export class Player {
                 dy *= 0.707;
             }
 
-            this.x += dx * this.speed * dt * 60;
+            // Horizontal speed grows with the field width so crossing a wide
+            // desktop field doesn't feel sluggish (vertical size is fixed).
+            const speedScale = getSpeedScale();
+            this.x += dx * this.speed * speedScale * dt * 60;
             this.y += dy * this.speed * dt * 60;
         }
 
@@ -209,9 +268,9 @@ export class Player {
 
         // Bomb
         if (this.bombCooldown > 0) this.bombCooldown -= dt * 60;
-        if (this.input.isBomb() && this.bombs > 0 && this.bombCooldown <= 0) {
+        if (this._isBomb() && this.bombs > 0 && this.bombCooldown <= 0) {
             this.useBomb();
-            this.input.clearKey('Space');
+            this._clearBombKeys();
         }
 
         if (this.bombActive) {
@@ -516,8 +575,10 @@ export class Player {
         ctx.lineTo(cx + 3, engineY);
         ctx.fill();
 
-        // Ship body (use skin color)
-        const skinColor = this.skinSystem ? this.skinSystem.getCurrentSkin().color : '#2266cc';
+        // Ship body (palette override in 2P, otherwise the selected skin)
+        const skinColor = this.palette
+            ? this.palette.color
+            : (this.skinSystem ? this.skinSystem.getCurrentSkin().color : '#2266cc');
         ctx.fillStyle = skinColor;
         ctx.beginPath();
         ctx.moveTo(cx, this.y);
@@ -529,7 +590,9 @@ export class Player {
         ctx.fill();
 
         // Wings (use secondary skin color)
-        const secondaryColor = this.skinSystem ? this.skinSystem.getCurrentSkin().secondaryColor : '#3388ee';
+        const secondaryColor = this.palette
+            ? this.palette.secondaryColor
+            : (this.skinSystem ? this.skinSystem.getCurrentSkin().secondaryColor : '#3388ee');
         ctx.fillStyle = secondaryColor;
         ctx.beginPath();
         ctx.moveTo(cx - 4, this.y + 10);
@@ -676,5 +739,17 @@ export class Player {
 
         ctx.restore();
         ctx.globalAlpha = 1;
+
+        // "P1" / "P2" tag under the ship so the two pilots are easy to tell apart
+        if (this.label) {
+            ctx.save();
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = this.palette ? this.palette.color : '#ffffff';
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = '#000000';
+            ctx.fillText(this.label, cx, this.y + this.height + 24);
+            ctx.restore();
+        }
     }
 }

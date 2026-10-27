@@ -1,6 +1,6 @@
 // levels.js - Level configuration and wave spawning
 
-import { GAME_WIDTH, GAME_HEIGHT, randRange, randInt } from './utils.js';
+import { GAME_WIDTH, GAME_HEIGHT, BASE_WIDTH, getLaneCount, randRange, randInt } from './utils.js';
 import { ENEMY_TYPES } from './enemies.js';
 
 const LEVEL_CONFIGS = [
@@ -230,25 +230,35 @@ export class LevelManager {
     }
 
     _spawnWave(wave) {
+        // Wave layouts are authored for a 540-wide field. On a wider desktop
+        // field the whole wave is replicated into `lanes` scaled copies that
+        // tile the width (1 lane == the classic layout, unchanged).
+        const lanes = getLaneCount();
+        const laneW = GAME_WIDTH / lanes;
+        const xScale = laneW / BASE_WIDTH;
+
         for (const group of wave.enemies) {
-            for (let i = 0; i < group.count; i++) {
-                const x = group.startX + i * (group.spacing || 40);
-                const delay = i * 10;
-                setTimeout(() => {
-                    if (this.state !== 'complete') {
-                        // Handle new enemy types
-                        if (group.type === ENEMY_TYPES.SPEEDY) {
-                            this.enemySystem.spawnSpeedyEnemy(x, -30 - i * 20);
-                        } else if (group.type === ENEMY_TYPES.ROTATING) {
-                            this.enemySystem.spawnRotatingEnemy(x, -30 - i * 20);
-                        } else if (group.type === ENEMY_TYPES.SUICIDE) {
-                            this.enemySystem.spawnSuicideEnemy(x, -30 - i * 20);
-                        } else {
-                            // Original enemy types
-                            this.enemySystem.spawnEnemy(group.type, x, -30 - i * 20, group.pattern);
+            for (let lane = 0; lane < lanes; lane++) {
+                for (let i = 0; i < group.count; i++) {
+                    const baseX = group.startX + i * (group.spacing || 40);
+                    const x = lane * laneW + baseX * xScale;
+                    const delay = i * 10;
+                    setTimeout(() => {
+                        if (this.state !== 'complete') {
+                            // Handle new enemy types
+                            if (group.type === ENEMY_TYPES.SPEEDY) {
+                                this.enemySystem.spawnSpeedyEnemy(x, -30 - i * 20);
+                            } else if (group.type === ENEMY_TYPES.ROTATING) {
+                                this.enemySystem.spawnRotatingEnemy(x, -30 - i * 20);
+                            } else if (group.type === ENEMY_TYPES.SUICIDE) {
+                                this.enemySystem.spawnSuicideEnemy(x, -30 - i * 20);
+                            } else {
+                                // Original enemy types
+                                this.enemySystem.spawnEnemy(group.type, x, -30 - i * 20, group.pattern);
+                            }
                         }
-                    }
-                }, delay * 16);
+                    }, delay * 16);
+                }
             }
         }
     }
@@ -256,7 +266,9 @@ export class LevelManager {
     _updateEndless(dt) {
         this.endlessSpawnTimer -= dt * 60;
         if (this.endlessSpawnTimer <= 0) {
-            const spawnInterval = Math.max(20, 80 - this.endlessDifficulty * 5);
+            // Wider field => proportionally more frequent spawns, so the
+            // enemy density per screen area matches the classic field.
+            const spawnInterval = Math.max(20, 80 - this.endlessDifficulty * 5) / getLaneCount();
             this.endlessSpawnTimer = spawnInterval;
 
             const rand = Math.random();
