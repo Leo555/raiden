@@ -1,7 +1,16 @@
 // levels.js - Level configuration and wave spawning
 
-import { GAME_WIDTH, GAME_HEIGHT, BASE_WIDTH, getLaneCount, randRange, randInt } from './utils.js';
+import { GAME_WIDTH, GAME_HEIGHT, BASE_WIDTH, getLaneCount, clamp, randRange, randInt } from './utils.js';
 import { ENEMY_TYPES } from './enemies.js';
+
+// Horizontal extent actually used by the hand-authored wave layouts below
+// (smallest startX is 50, the largest startX + (count-1) * spacing is ~435).
+const AUTHOR_MIN_X = 40;
+const AUTHOR_MAX_X = 450;
+// Keep enemies this far from a lane edge, and reserve room for the enemy's own
+// width so the right-most one is not cut off by the field edge.
+const LANE_MARGIN = 30;
+const ENEMY_PAD = 50;
 
 const LEVEL_CONFIGS = [
     // Level 1: Introduction
@@ -172,6 +181,8 @@ export class LevelManager {
         this.state = 'transition';
         this.transitionTimer = 90;
         this.bossSpawned = false;
+        // Which parity of waves gets mirrored on a wide field (see _spawnWave).
+        this.mirrorSeed = Math.random() < 0.5 ? 0 : 1;
 
         if (level < LEVEL_CONFIGS.length) {
             this.levelConfig = LEVEL_CONFIGS[level];
@@ -230,18 +241,33 @@ export class LevelManager {
     }
 
     _spawnWave(wave) {
-        // Wave layouts are authored for a 540-wide field. On a wider desktop
-        // field the whole wave is replicated into `lanes` scaled copies that
-        // tile the width (1 lane == the classic layout, unchanged).
+        // Wave layouts are authored for a 540-wide field, and every authored
+        // startX/spacing combination lives in [AUTHOR_MIN_X, AUTHOR_MAX_X] -
+        // i.e. the right ~100px of the classic field is always empty. On a
+        // wider desktop field a plain scale-up would keep that left bias and
+        // leave the whole right side without enemies. Instead the authored
+        // range is STRETCHED across each lane, and the wave is replicated once
+        // per lane. A classic 540 field (phones) keeps the authored positions.
+        const wide = GAME_WIDTH > BASE_WIDTH;
         const lanes = getLaneCount();
         const laneW = GAME_WIDTH / lanes;
-        const xScale = laneW / BASE_WIDTH;
+        const usable = Math.max(1, laneW - 2 * LANE_MARGIN - ENEMY_PAD);
+        // The authored formations also lean left inside their lane, so on a
+        // wide field every other wave is mirrored left<->right (which side
+        // starts mirrored is random per level). Over a level both sides see
+        // the same amount of action instead of the right side feeling empty.
+        const mirror = wide && (((this.waveIndex || 0) + (this.mirrorSeed || 0)) & 1) === 1;
 
         for (const group of wave.enemies) {
             for (let lane = 0; lane < lanes; lane++) {
                 for (let i = 0; i < group.count; i++) {
                     const baseX = group.startX + i * (group.spacing || 40);
-                    const x = lane * laneW + baseX * xScale;
+                    let x = baseX;
+                    if (wide) {
+                        const t = clamp((baseX - AUTHOR_MIN_X) / (AUTHOR_MAX_X - AUTHOR_MIN_X), 0, 1);
+                        x = lane * laneW + LANE_MARGIN + t * usable;
+                        if (mirror) x = GAME_WIDTH - x - ENEMY_PAD;
+                    }
                     const delay = i * 10;
                     setTimeout(() => {
                         if (this.state !== 'complete') {
